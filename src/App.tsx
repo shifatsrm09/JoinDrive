@@ -1,10 +1,15 @@
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Landing from "./pages/Landing";
+import Explorer from "./pages/Explorer";
+
 function App() {
   return (
-    <div className="flex h-screen items-center justify-center bg-neutral-900">
-      <h1 className="text-5xl font-bold text-blue-500">
-        JoinDrive
-      </h1>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/explorer" element={<Explorer />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
