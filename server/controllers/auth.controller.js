@@ -126,3 +126,16 @@ export async function getMe(req, res) {
     });
   }
 }
+
+export async function logout(req, res) {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: false,
+    sameSite: "lax",
+  });
+
+  return res.json({
+    success: true,
+    message: "Logged out successfully",
+  });
+}
