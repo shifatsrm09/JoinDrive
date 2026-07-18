@@ -99,3 +99,26 @@ export async function googleCallback(req, res) {
     });
   }
 }
+
+export async function getMe(req, res) {
+  try {
+    const accounts = await GoogleAccount.find({
+      userId: req.user._id,
+    }).select("-accessToken -refreshToken");
+
+    return res.json({
+      success: true,
+      user: {
+        id: req.user._id,
+        accounts,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch user",
+    });
+  }
+}
