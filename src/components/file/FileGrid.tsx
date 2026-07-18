@@ -1,4 +1,4 @@
-import DriveCard from "./DriveCard";
+import DriveCard from "../drive/DriveCard";
 
 export default function FileGrid() {
   return (

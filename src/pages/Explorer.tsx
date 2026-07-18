@@ -1,4 +1,4 @@
-import ExplorerLayout from "../components/explorer/ExplorerLayout";
+import ExplorerLayout from "../components/layout/ExplorerLayout";
 
 export default function Explorer() {
   return <ExplorerLayout />;

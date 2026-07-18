@@ -1,7 +1,7 @@
 import Sidebar from "./Sidebar";
 import Toolbar from "./Toolbar";
 import Breadcrumb from "./Breadcrumb";
-import FileGrid from "./FileGrid";
+import FileGrid from "../file/FileGrid";
 
 export default function ExplorerLayout() {
   return (
