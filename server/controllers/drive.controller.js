@@ -1,5 +1,6 @@
 import {
   getStorageInfo,
+  getDriveInfo,
   listFiles,
 } from "../services/drive.service.js";
 
@@ -10,6 +11,24 @@ export async function getStorage(req, res) {
     return res.json({
       success: true,
       storage,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}
+
+export async function getInfo(req, res) {
+  try {
+    const drive = await getDriveInfo(req.user._id);
+
+    return res.json({
+      success: true,
+      drive,
     });
   } catch (error) {
     console.error(error);
