@@ -53,10 +53,14 @@ export async function googleCallback(req, res) {
       account.name = data.name;
       account.email = data.email;
       account.picture = data.picture;
-      account.accessToken = tokens.access_token;
+      if (tokens.access_token) {
+        account.accessToken = tokens.access_token;
+        }
       account.refreshToken =
         tokens.refresh_token || account.refreshToken;
-      account.expiryDate = tokens.expiry_date;
+      if (tokens.expiry_date) {
+        account.expiryDate = tokens.expiry_date;
+        }
       account.lastSynced = new Date();
 
       await account.save();
@@ -70,7 +74,7 @@ export async function googleCallback(req, res) {
         email: data.email,
         name: data.name,
         picture: data.picture,
-        accessToken: tokens.access_token,
+        accessToken: tokens.access_token || "",
         refreshToken: tokens.refresh_token || "",
         expiryDate: tokens.expiry_date,
       });
