@@ -1,49 +1,43 @@
-import { google } from "googleapis";
-
-import GoogleAccount from "../models/GoogleAccount.js";
-import { getAuthenticatedClient } from "../services/google.service.js";
+import {
+  getStorageInfo,
+  listFiles,
+} from "../services/drive.service.js";
 
 export async function getStorage(req, res) {
   try {
-    const account = await GoogleAccount.findOne({
-      userId: req.user._id,
-    });
-
-    if (!account) {
-      return res.status(404).json({
-        success: false,
-        message: "No Google account connected",
-      });
-    }
-
-    const auth = await getAuthenticatedClient(account._id);
-
-    const drive = google.drive({
-      version: "v3",
-      auth,
-    });
-
-    const { data } = await drive.about.get({
-      fields: "storageQuota",
-    });
-
-    const quota = data.storageQuota;
+    const storage = await getStorageInfo(req.user._id);
 
     return res.json({
       success: true,
-      storage: {
-        limit: quota.limit,
-        usage: quota.usage,
-        usageInDrive: quota.usageInDrive,
-        usageInDriveTrash: quota.usageInDriveTrash,
-      },
+      storage,
     });
   } catch (error) {
     console.error(error);
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch storage information",
+      message: error.message,
+    });
+  }
+}
+
+export async function getFiles(req, res) {
+  try {
+    const folderId = req.query.folderId || "root";
+
+    const files = await listFiles(req.user._id, folderId);
+
+    return res.json({
+      success: true,
+      currentFolder: folderId,
+      files,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
     });
   }
 }
