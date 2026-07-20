@@ -4,12 +4,26 @@ import {
   Bell,
   CircleUser,
   LogOut,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { logout } from "../../api/auth";
 import { useAuth } from "../../context/AuthContext";
 
-export default function Toolbar() {
+type ToolbarProps = {
+  canGoBack: boolean;
+  canGoForward: boolean;
+  onBack: () => void;
+  onForward: () => void;
+};
+
+export default function Toolbar({
+  canGoBack,
+  canGoForward,
+  onBack,
+  onForward,
+}: ToolbarProps) {
   const navigate = useNavigate();
   const { setUser } = useAuth();
 
@@ -25,12 +39,36 @@ export default function Toolbar() {
   return (
     <header className="flex h-16 items-center justify-between border-b border-zinc-800 bg-[#202020] px-6">
       {/* Left */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <button className="rounded-lg p-2 transition hover:bg-zinc-700">
           <Menu size={22} />
         </button>
 
-        <h1 className="text-xl font-semibold tracking-tight">
+        <button
+          onClick={onBack}
+          disabled={!canGoBack}
+          className={`rounded-lg p-2 transition ${
+            canGoBack
+              ? "hover:bg-zinc-700"
+              : "cursor-not-allowed opacity-40"
+          }`}
+        >
+          <ChevronLeft size={20} />
+        </button>
+
+        <button
+          onClick={onForward}
+          disabled={!canGoForward}
+          className={`rounded-lg p-2 transition ${
+            canGoForward
+              ? "hover:bg-zinc-700"
+              : "cursor-not-allowed opacity-40"
+          }`}
+        >
+          <ChevronRight size={20} />
+        </button>
+
+        <h1 className="ml-2 text-xl font-semibold tracking-tight">
           JoinDrive
         </h1>
       </div>

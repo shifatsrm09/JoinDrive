@@ -1,7 +1,13 @@
 import DriveCard from "../drive/DriveCard";
 import useDrive from "../../hooks/useDrive";
 
-export default function FileGrid() {
+type FileGridProps = {
+  onOpenDrive: () => void;
+};
+
+export default function FileGrid({
+  onOpenDrive,
+}: FileGridProps) {
   const { drive, loading, error } = useDrive();
 
   return (
@@ -11,11 +17,15 @@ export default function FileGrid() {
       </h1>
 
       {loading && (
-        <p className="text-zinc-400">Loading drive...</p>
+        <p className="text-zinc-400">
+          Loading drive...
+        </p>
       )}
 
       {error && (
-        <p className="text-red-400">{error}</p>
+        <p className="text-red-400">
+          {error}
+        </p>
       )}
 
       {!loading && !error && drive && (
@@ -24,9 +34,24 @@ export default function FileGrid() {
             id={drive.id}
             name={drive.name}
             email={drive.email}
-            used={+(Number(drive.storage.usage) / 1024 / 1024 / 1024).toFixed(2)}
-            total={+(Number(drive.storage.limit) / 1024 / 1024 / 1024).toFixed(2)}
+            used={
+              +(
+                Number(drive.storage.usage) /
+                1024 /
+                1024 /
+                1024
+              ).toFixed(2)
+            }
+            total={
+              +(
+                Number(drive.storage.limit) /
+                1024 /
+                1024 /
+                1024
+              ).toFixed(2)
+            }
             connected={drive.connected}
+            onOpen={onOpenDrive}
           />
         </div>
       )}
