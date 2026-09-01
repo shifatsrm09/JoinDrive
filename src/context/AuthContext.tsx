@@ -8,15 +8,28 @@ import {
 import type { ReactNode } from "react";
 
 import { getMe } from "../api/auth";
+import type { MeResponse } from "../api/auth";
 
-const AuthContext = createContext<any>(null);
+type AuthUser = MeResponse["user"];
+
+type AuthContextValue = {
+  user: AuthUser | null;
+  loading: boolean;
+  setUser: (user: AuthUser | null) => void;
+};
+
+const AuthContext = createContext<AuthContextValue>({
+  user: null,
+  loading: true,
+  setUser: () => {},
+});
 
 export function AuthProvider({
   children,
 }: {
   children: ReactNode;
 }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

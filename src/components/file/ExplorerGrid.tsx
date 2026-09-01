@@ -20,36 +20,55 @@ type DriveFile = {
 };
 
 type ExplorerGridProps = {
+  accountId: string;
   folderId: string;
   onOpenFolder: (id: string, name: string) => void;
 };
 
 export default function ExplorerGrid({
+  accountId,
   folderId,
   onOpenFolder,
 }: ExplorerGridProps) {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
+  // Refetch whenever the folder OR the selected Google account changes,
+  // so switching drives never shows the previous account's files.
   useEffect(() => {
-    loadFolder(folderId);
-  }, [folderId]);
+    let cancelled = false;
 
-  async function loadFolder(id: string) {
-    try {
-      setLoading(true);
+    async function loadFolder() {
+      try {
+        setLoading(true);
+        setError("");
 
-      const res = await getFiles(id);
+        const res = await getFiles(folderId, accountId);
 
-      if (res.success) {
-        setFiles(res.files);
+        if (!cancelled && res.success) {
+          setFiles(res.files);
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load files"
+          );
+          setFiles([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
     }
-  }
+
+    loadFolder();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [folderId, accountId]);
 
   function getIcon(type: string) {
     if (type === "application/vnd.google-apps.folder") {
@@ -104,6 +123,22 @@ export default function ExplorerGrid({
         <p className="text-zinc-400">
           Loading files...
         </p>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="flex flex-1 items-center justify-center">
+        <p className="text-red-400">{error}</p>
+      </main>
+    );
+  }
+
+  if (files.length === 0) {
+    return (
+      <main className="flex flex-1 items-center justify-center">
+        <p className="text-zinc-500">This folder is empty</p>
       </main>
     );
   }

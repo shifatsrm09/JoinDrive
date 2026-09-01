@@ -1,58 +1,70 @@
+import { Plus } from "lucide-react";
+
 import DriveCard from "../drive/DriveCard";
-import useDrive from "../../hooks/useDrive";
+import useDriveAccounts from "../../hooks/useDriveAccounts";
+import { GOOGLE_CONNECT_URL } from "../../api/config";
+import type { DriveAccount } from "../../types/drive";
 
 type FileGridProps = {
-  onOpenDrive: () => void;
+  onOpenDrive: (account: DriveAccount) => void;
+  refreshKey?: string | null;
 };
 
 export default function FileGrid({
   onOpenDrive,
+  refreshKey,
 }: FileGridProps) {
-  const { drive, loading, error } = useDrive();
+  // refreshKey changes when a Drive was just linked, which refetches
+  // the list so the new card appears immediately.
+  const { accounts, loading, error } = useDriveAccounts(refreshKey);
+
+  function handleAddDrive() {
+    window.location.href = GOOGLE_CONNECT_URL;
+  }
 
   return (
     <main className="flex-1 overflow-auto bg-[#1B1B1B] p-6">
-      <h1 className="mb-6 text-2xl font-bold">
-        Connected Drives
-      </h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Connected Drives</h1>
+
+        {!loading && accounts.length > 0 && (
+          <span className="text-sm text-zinc-500">
+            {accounts.length}{" "}
+            {accounts.length === 1 ? "account" : "accounts"}
+          </span>
+        )}
+      </div>
 
       {loading && (
-        <p className="text-zinc-400">
-          Loading drive...
-        </p>
+        <p className="text-zinc-400">Loading drives...</p>
       )}
 
-      {error && (
-        <p className="text-red-400">
-          {error}
-        </p>
-      )}
+      {error && <p className="text-red-400">{error}</p>}
 
-      {!loading && !error && drive && (
+      {!loading && !error && (
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          <DriveCard
-            id={drive.id}
-            name={drive.name}
-            email={drive.email}
-            used={
-              +(
-                Number(drive.storage.usage) /
-                1024 /
-                1024 /
-                1024
-              ).toFixed(2)
-            }
-            total={
-              +(
-                Number(drive.storage.limit) /
-                1024 /
-                1024 /
-                1024
-              ).toFixed(2)
-            }
-            connected={drive.connected}
-            onOpen={onOpenDrive}
-          />
+          {accounts.map((account) => (
+            <DriveCard
+              key={account.id}
+              account={account}
+              onOpen={() => onOpenDrive(account)}
+            />
+          ))}
+
+          <button
+            onClick={handleAddDrive}
+            className="flex min-h-[190px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-700 bg-transparent p-5 text-zinc-400 transition-all duration-200 hover:border-[#0E639C] hover:text-[#4DA3FF]"
+          >
+            <div className="rounded-xl bg-zinc-800 p-3">
+              <Plus size={24} />
+            </div>
+
+            <span className="font-medium">Add Google Drive</span>
+
+            <span className="max-w-[220px] text-center text-xs text-zinc-500">
+              Connect another Google account to browse it here
+            </span>
+          </button>
         </div>
       )}
     </main>

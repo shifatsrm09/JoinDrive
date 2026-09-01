@@ -43,6 +43,11 @@ const googleAccountSchema = new mongoose.Schema(
       type: Number,
     },
 
+    isPrimary: {
+      type: Boolean,
+      default: false,
+    },
+
     connectedAt: {
       type: Date,
       default: Date.now,
@@ -57,5 +62,7 @@ const googleAccountSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+googleAccountSchema.index({ userId: 1, isPrimary: 1 });
 
 export default mongoose.model("GoogleAccount", googleAccountSchema);

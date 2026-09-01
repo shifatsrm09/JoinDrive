@@ -3,6 +3,7 @@ import { Router } from "express";
 import { protect } from "../middleware/protect.js";
 
 import {
+  listAccounts,
   getStorage,
   getInfo,
   getFiles,
@@ -10,10 +11,19 @@ import {
 
 const router = Router();
 
-router.get("/info", protect, getInfo);
+router.use(protect);
 
-router.get("/storage", protect, getStorage);
+// All Google accounts linked to the authenticated JoinDrive User
+router.get("/accounts", listAccounts);
 
-router.get("/files", protect, getFiles);
+// Primary account (kept so existing behaviour does not break)
+router.get("/info", getInfo);
+router.get("/storage", getStorage);
+router.get("/files", getFiles);
+
+// A specific linked account
+router.get("/:accountId/info", getInfo);
+router.get("/:accountId/storage", getStorage);
+router.get("/:accountId/files", getFiles);
 
 export default router;
