@@ -1,53 +1,179 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Folder,
-  FileText,
-  Image,
-  FileSpreadsheet,
-  FileVideo,
+  ArrowDownAZ,
+  ArrowUpAZ,
+  ClipboardPaste,
+  Copy,
+  Download,
+  ExternalLink,
+  File as FileIcon,
   FileArchive,
+  FileSpreadsheet,
+  FileText,
+  FileVideo,
+  Folder,
+  FolderOpen,
+  Image,
+  Music,
+  Pencil,
+  RefreshCw,
+  Scissors,
+  Share2,
+  Trash2,
 } from "lucide-react";
-import { getFiles } from "../../api/drive";
 
-type DriveFile = {
-  id: string;
-  name: string;
-  mimeType: string;
-  size?: string;
-  modifiedTime: string;
-  iconLink?: string;
-  thumbnailLink?: string;
-};
+import ContextMenu from "../ui/ContextMenu";
+import type { MenuItem } from "../ui/ContextMenu";
+import RenameDialog from "./RenameDialog";
+import ConfirmDialog from "./ConfirmDialog";
+import ShareDialog from "./ShareDialog";
+
+import {
+  copyFile,
+  deleteFile,
+  downloadUrl,
+  getFiles,
+  moveFile,
+  renameFile,
+} from "../../api/drive";
+
+import { isFolder } from "../../types/drive";
+import type {
+  Clipboard,
+  DriveFile,
+  SortDirection,
+  SortKey,
+} from "../../types/drive";
 
 type ExplorerGridProps = {
   accountId: string;
   folderId: string;
+  clipboard: Clipboard | null;
+  onClipboardChange: (clipboard: Clipboard | null) => void;
   onOpenFolder: (id: string, name: string) => void;
 };
+
+type MenuState = {
+  x: number;
+  y: number;
+  file: DriveFile | null;
+};
+
+type DialogState =
+  | { kind: "rename"; file: DriveFile }
+  | { kind: "delete"; file: DriveFile }
+  | { kind: "share"; file: DriveFile }
+  | null;
+
+const SORT_LABELS: Record<SortKey, string> = {
+  name: "Name",
+  modified: "Modified",
+  size: "Size",
+};
+
+function getIcon(file: DriveFile) {
+  const type = file.mimeType;
+
+  if (isFolder(file)) {
+    return <Folder size={44} className="text-blue-400" />;
+  }
+
+  if (type.startsWith("image/")) {
+    return <Image size={44} className="text-green-400" />;
+  }
+
+  if (type.startsWith("video/")) {
+    return <FileVideo size={44} className="text-purple-400" />;
+  }
+
+  if (type.startsWith("audio/")) {
+    return <Music size={44} className="text-pink-400" />;
+  }
+
+  if (type.includes("spreadsheet") || type.includes("excel")) {
+    return <FileSpreadsheet size={44} className="text-emerald-400" />;
+  }
+
+  if (type.includes("zip") || type.includes("rar") || type.includes("tar")) {
+    return <FileArchive size={44} className="text-yellow-400" />;
+  }
+
+  if (
+    type.includes("document") ||
+    type.includes("text") ||
+    type.includes("pdf")
+  ) {
+    return <FileText size={44} className="text-zinc-300" />;
+  }
+
+  return <FileIcon size={44} className="text-zinc-400" />;
+}
+
+function formatSize(size?: string) {
+  if (!size) {
+    return "";
+  }
+
+  const bytes = Number(size);
+  const units = ["B", "KB", "MB", "GB", "TB"];
+
+  let value = bytes;
+  let unit = 0;
+
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+
+  return `${value < 10 && unit > 0 ? value.toFixed(1) : Math.round(value)} ${
+    units[unit]
+  }`;
+}
 
 export default function ExplorerGrid({
   accountId,
   folderId,
+  clipboard,
+  onClipboardChange,
   onOpenFolder,
 }: ExplorerGridProps) {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [version, setVersion] = useState(0);
 
-  // Refetch whenever the folder OR the selected Google account changes,
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [dialog, setDialog] = useState<DialogState>(null);
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState("");
+  const [toastIsError, setToastIsError] = useState(false);
+
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDirection, setSortDirection] =
+    useState<SortDirection>("asc");
+
+  const reload = useCallback(() => setVersion((v) => v + 1), []);
+
+  const notify = useCallback((message: string, isError = false) => {
+    setToast(message);
+    setToastIsError(isError);
+
+    window.setTimeout(() => setToast(""), 4000);
+  }, []);
+
+  // Refetch whenever the folder, the account, or a mutation changes,
   // so switching drives never shows the previous account's files.
   useEffect(() => {
     let cancelled = false;
 
-    async function loadFolder() {
+    async function load() {
       try {
-        setLoading(true);
-        setError("");
-
         const res = await getFiles(folderId, accountId);
 
-        if (!cancelled && res.success) {
-          setFiles(res.files);
+        if (!cancelled) {
+          setFiles(res.files || []);
+          setError("");
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -63,121 +189,586 @@ export default function ExplorerGrid({
       }
     }
 
-    loadFolder();
+    load();
 
     return () => {
       cancelled = true;
     };
-  }, [folderId, accountId]);
+  }, [folderId, accountId, version]);
 
-  function getIcon(type: string) {
-    if (type === "application/vnd.google-apps.folder") {
-      return <Folder size={44} className="text-blue-400" />;
-    }
+  const sorted = useMemo(() => {
+    const factor = sortDirection === "asc" ? 1 : -1;
 
-    if (type.startsWith("image/")) {
-      return <Image size={44} className="text-green-400" />;
-    }
+    return [...files].sort((a, b) => {
+      // Folders always lead, the way a file explorer behaves.
+      const folderDelta = Number(isFolder(b)) - Number(isFolder(a));
 
-    if (type.includes("spreadsheet")) {
+      if (folderDelta !== 0) {
+        return folderDelta;
+      }
+
+      if (sortKey === "modified") {
+        return (
+          factor *
+          (new Date(a.modifiedTime).getTime() -
+            new Date(b.modifiedTime).getTime())
+        );
+      }
+
+      if (sortKey === "size") {
+        return factor * (Number(a.size || 0) - Number(b.size || 0));
+      }
+
       return (
-        <FileSpreadsheet
-          size={44}
-          className="text-emerald-400"
-        />
+        factor *
+        a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
       );
+    });
+  }, [files, sortKey, sortDirection]);
+
+  const selected = useMemo(
+    () => sorted.find((file) => file.id === selectedId) || null,
+    [sorted, selectedId]
+  );
+
+  const canPaste =
+    !!clipboard && clipboard.accountId === accountId && !busy;
+
+  /* ---------------------------------------------------------------- */
+  /* Actions                                                          */
+  /* ---------------------------------------------------------------- */
+
+  const openItem = useCallback(
+    (file: DriveFile) => {
+      if (isFolder(file)) {
+        onOpenFolder(file.id, file.name);
+        return;
+      }
+
+      if (file.webViewLink) {
+        window.open(file.webViewLink, "_blank", "noopener,noreferrer");
+      }
+    },
+    [onOpenFolder]
+  );
+
+  const download = useCallback(
+    (file: DriveFile) => {
+      if (isFolder(file)) {
+        notify("Folders cannot be downloaded", true);
+        return;
+      }
+
+      // A normal navigation lets the browser show its own save dialog
+      // and sends the session cookie with the request.
+      const anchor = document.createElement("a");
+      anchor.href = downloadUrl(accountId, file.id);
+      anchor.rel = "noopener";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    },
+    [accountId, notify]
+  );
+
+  const paste = useCallback(async () => {
+    if (!clipboard || clipboard.accountId !== accountId) {
+      return;
     }
 
-    if (type.startsWith("video/")) {
-      return (
-        <FileVideo
-          size={44}
-          className="text-purple-400"
-        />
+    try {
+      setBusy(true);
+
+      if (clipboard.mode === "copy") {
+        await copyFile(accountId, clipboard.file.id, folderId);
+        notify(`Copied "${clipboard.file.name}" here`);
+      } else {
+        await moveFile(accountId, clipboard.file.id, folderId);
+        notify(`Moved "${clipboard.file.name}" here`);
+        onClipboardChange(null);
+      }
+
+      reload();
+    } catch (err: unknown) {
+      notify(
+        err instanceof Error ? err.message : "Paste failed",
+        true
       );
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    clipboard,
+    accountId,
+    folderId,
+    notify,
+    onClipboardChange,
+    reload,
+  ]);
+
+  async function submitRename(name: string) {
+    if (dialog?.kind !== "rename") {
+      return;
     }
 
-    if (
-      type.includes("zip") ||
-      type.includes("rar")
-    ) {
-      return (
-        <FileArchive
-          size={44}
-          className="text-yellow-400"
-        />
-      );
-    }
+    try {
+      setBusy(true);
 
-    return (
-      <FileText
-        size={44}
-        className="text-zinc-300"
-      />
-    );
+      await renameFile(accountId, dialog.file.id, name);
+
+      notify(`Renamed to "${name}"`);
+      setDialog(null);
+      reload();
+    } catch (err: unknown) {
+      notify(
+        err instanceof Error ? err.message : "Rename failed",
+        true
+      );
+    } finally {
+      setBusy(false);
+    }
   }
+
+  async function confirmDelete() {
+    if (dialog?.kind !== "delete") {
+      return;
+    }
+
+    try {
+      setBusy(true);
+
+      await deleteFile(accountId, dialog.file.id);
+
+      notify(`"${dialog.file.name}" moved to trash`);
+      setDialog(null);
+      setSelectedId(null);
+      reload();
+    } catch (err: unknown) {
+      notify(
+        err instanceof Error ? err.message : "Delete failed",
+        true
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Keyboard shortcuts                                               */
+  /* ---------------------------------------------------------------- */
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement;
+
+      // Never hijack typing inside a dialog.
+      if (
+        dialog ||
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT"
+      ) {
+        return;
+      }
+
+      const ctrl = event.ctrlKey || event.metaKey;
+
+      if (ctrl && event.key.toLowerCase() === "v") {
+        event.preventDefault();
+        paste();
+        return;
+      }
+
+      if (!selected) {
+        return;
+      }
+
+      if (ctrl && event.key.toLowerCase() === "c") {
+        event.preventDefault();
+        onClipboardChange({ mode: "copy", file: selected, accountId });
+        notify(`Copied "${selected.name}"`);
+        return;
+      }
+
+      if (ctrl && event.key.toLowerCase() === "x") {
+        event.preventDefault();
+        onClipboardChange({ mode: "cut", file: selected, accountId });
+        notify(`Cut "${selected.name}"`);
+        return;
+      }
+
+      if (event.key === "F2") {
+        event.preventDefault();
+        setDialog({ kind: "rename", file: selected });
+        return;
+      }
+
+      if (event.key === "Delete") {
+        event.preventDefault();
+        setDialog({ kind: "delete", file: selected });
+        return;
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        openItem(selected);
+        return;
+      }
+
+      if (event.key === "Escape") {
+        setSelectedId(null);
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [
+    selected,
+    dialog,
+    accountId,
+    paste,
+    openItem,
+    notify,
+    onClipboardChange,
+  ]);
+
+  /* ---------------------------------------------------------------- */
+  /* Context menus                                                    */
+  /* ---------------------------------------------------------------- */
+
+  function buildFileMenu(file: DriveFile): MenuItem[] {
+    const caps = file.capabilities || {};
+    const folder = isFolder(file);
+
+    return [
+      {
+        kind: "item",
+        label: folder ? "Open" : "Open in Drive",
+        icon: folder ? FolderOpen : ExternalLink,
+        onSelect: () => openItem(file),
+      },
+      {
+        kind: "item",
+        label: "Download",
+        icon: Download,
+        disabled: folder || caps.canDownload === false,
+        onSelect: () => download(file),
+      },
+      { kind: "separator" },
+      {
+        kind: "item",
+        label: "Copy",
+        icon: Copy,
+        shortcut: "Ctrl+C",
+        disabled: caps.canCopy === false || folder,
+        onSelect: () => {
+          onClipboardChange({ mode: "copy", file, accountId });
+          notify(`Copied "${file.name}"`);
+        },
+      },
+      {
+        kind: "item",
+        label: "Cut",
+        icon: Scissors,
+        shortcut: "Ctrl+X",
+        disabled: caps.canEdit === false,
+        onSelect: () => {
+          onClipboardChange({ mode: "cut", file, accountId });
+          notify(`Cut "${file.name}"`);
+        },
+      },
+      {
+        kind: "item",
+        label: clipboard
+          ? `Paste "${clipboard.file.name}"`
+          : "Paste",
+        icon: ClipboardPaste,
+        shortcut: "Ctrl+V",
+        disabled: !canPaste,
+        onSelect: paste,
+      },
+      { kind: "separator" },
+      {
+        kind: "item",
+        label: "Rename",
+        icon: Pencil,
+        shortcut: "F2",
+        disabled: caps.canRename === false,
+        onSelect: () => setDialog({ kind: "rename", file }),
+      },
+      {
+        kind: "item",
+        label: "Share",
+        icon: Share2,
+        disabled: caps.canShare === false,
+        onSelect: () => setDialog({ kind: "share", file }),
+      },
+      { kind: "separator" },
+      {
+        kind: "item",
+        label: "Move to trash",
+        icon: Trash2,
+        shortcut: "Del",
+        danger: true,
+        disabled: caps.canDelete === false,
+        onSelect: () => setDialog({ kind: "delete", file }),
+      },
+    ];
+  }
+
+  function buildBackgroundMenu(): MenuItem[] {
+    return [
+      {
+        kind: "item",
+        label: clipboard ? `Paste "${clipboard.file.name}"` : "Paste",
+        icon: ClipboardPaste,
+        shortcut: "Ctrl+V",
+        disabled: !canPaste,
+        onSelect: paste,
+      },
+      { kind: "separator" },
+      ...(Object.keys(SORT_LABELS) as SortKey[]).map<MenuItem>((key) => ({
+        kind: "item",
+        label: `Sort by ${SORT_LABELS[key]}`,
+        icon: sortKey === key ? ArrowDownAZ : undefined,
+        onSelect: () => setSortKey(key),
+      })),
+      {
+        kind: "item",
+        label:
+          sortDirection === "asc"
+            ? "Descending order"
+            : "Ascending order",
+        icon: sortDirection === "asc" ? ArrowUpAZ : ArrowDownAZ,
+        onSelect: () =>
+          setSortDirection(sortDirection === "asc" ? "desc" : "asc"),
+      },
+      { kind: "separator" },
+      {
+        kind: "item",
+        label: "Refresh",
+        icon: RefreshCw,
+        onSelect: reload,
+      },
+    ];
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Render                                                           */
+  /* ---------------------------------------------------------------- */
 
   if (loading) {
     return (
       <main className="flex flex-1 items-center justify-center">
-        <p className="text-zinc-400">
-          Loading files...
-        </p>
+        <p className="text-zinc-400">Loading files...</p>
       </main>
     );
   }
 
   if (error) {
     return (
-      <main className="flex flex-1 items-center justify-center">
+      <main className="flex flex-1 flex-col items-center justify-center gap-3">
         <p className="text-red-400">{error}</p>
-      </main>
-    );
-  }
 
-  if (files.length === 0) {
-    return (
-      <main className="flex flex-1 items-center justify-center">
-        <p className="text-zinc-500">This folder is empty</p>
+        <button
+          onClick={reload}
+          className="rounded-lg bg-zinc-700 px-4 py-2 text-sm transition hover:bg-zinc-600"
+        >
+          Try again
+        </button>
       </main>
     );
   }
 
   return (
-    <main className="flex-1 overflow-auto bg-[#1B1B1B] p-6">
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-        {files.map((file) => (
-          <div
-            key={file.id}
-            onDoubleClick={() => {
-              if (
-                file.mimeType ===
-                "application/vnd.google-apps.folder"
-              ) {
-                onOpenFolder(
-                  file.id,
-                  file.name
-                );
-              }
-            }}
-            className="cursor-pointer rounded-xl border border-zinc-800 bg-[#252525] p-5 transition-all duration-200 hover:border-[#0E639C] hover:shadow-lg"
+    <main
+      onContextMenu={(event) => {
+        event.preventDefault();
+        setSelectedId(null);
+        setMenu({ x: event.clientX, y: event.clientY, file: null });
+      }}
+      onMouseDown={(event) => {
+        // Clicking empty space clears the selection.
+        if (event.target === event.currentTarget) {
+          setSelectedId(null);
+        }
+      }}
+      className="relative flex-1 overflow-auto bg-[#1B1B1B] p-6"
+    >
+      {/* Action bar */}
+      <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-zinc-500">Sort by</span>
+
+        {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
+          <button
+            key={key}
+            onClick={() => setSortKey(key)}
+            className={`rounded-lg px-3 py-1.5 transition ${
+              sortKey === key
+                ? "bg-[#0E639C] text-white"
+                : "text-zinc-300 hover:bg-zinc-800"
+            }`}
           >
-            <div className="mb-4 flex justify-center">
-              {getIcon(file.mimeType)}
-            </div>
-
-            <h2 className="truncate text-center font-medium">
-              {file.name}
-            </h2>
-
-            <p className="mt-2 text-center text-xs text-zinc-500">
-              {new Date(
-                file.modifiedTime
-              ).toLocaleDateString()}
-            </p>
-          </div>
+            {SORT_LABELS[key]}
+          </button>
         ))}
+
+        <button
+          onClick={() =>
+            setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+          }
+          title={
+            sortDirection === "asc" ? "Ascending" : "Descending"
+          }
+          className="rounded-lg p-1.5 text-zinc-300 transition hover:bg-zinc-800"
+        >
+          {sortDirection === "asc" ? (
+            <ArrowDownAZ size={18} />
+          ) : (
+            <ArrowUpAZ size={18} />
+          )}
+        </button>
+
+        <div className="ml-auto flex items-center gap-2">
+          {clipboard && (
+            <button
+              onClick={paste}
+              disabled={!canPaste}
+              className="flex items-center gap-2 rounded-lg bg-zinc-800 px-3 py-1.5 text-zinc-200 transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ClipboardPaste size={16} />
+              Paste
+              <span className="max-w-[140px] truncate text-zinc-500">
+                {clipboard.file.name}
+              </span>
+            </button>
+          )}
+
+          <button
+            onClick={reload}
+            title="Refresh"
+            className="rounded-lg p-1.5 text-zinc-300 transition hover:bg-zinc-800"
+          >
+            <RefreshCw size={18} />
+          </button>
+        </div>
       </div>
+
+      {toast && (
+        <div
+          className={`mb-4 rounded-lg px-4 py-2.5 text-sm ${
+            toastIsError
+              ? "bg-red-500/10 text-red-300"
+              : "bg-green-500/10 text-green-300"
+          }`}
+        >
+          {toast}
+        </div>
+      )}
+
+      {sorted.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center py-20">
+          <p className="text-zinc-500">This folder is empty</p>
+        </div>
+      ) : (
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+          {sorted.map((file) => {
+            const isSelected = file.id === selectedId;
+            const isCut =
+              clipboard?.mode === "cut" &&
+              clipboard.file.id === file.id &&
+              clipboard.accountId === accountId;
+
+            return (
+              <div
+                key={file.id}
+                // Suppressing the second mousedown stops the browser
+                // from selecting the label text on a double click.
+                onMouseDown={(event) => {
+                  if (event.detail > 1) {
+                    event.preventDefault();
+                  }
+                }}
+                onClick={() => setSelectedId(file.id)}
+                onDoubleClick={() => openItem(file)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setSelectedId(file.id);
+                  setMenu({
+                    x: event.clientX,
+                    y: event.clientY,
+                    file,
+                  });
+                }}
+                title={file.name}
+                className={`cursor-pointer select-none rounded-xl border p-5 transition-all duration-150 ${
+                  isSelected
+                    ? "border-[#0E639C] bg-[#0E639C]/15"
+                    : "border-zinc-800 bg-[#252525] hover:border-[#0E639C] hover:shadow-lg"
+                } ${isCut ? "opacity-50" : ""}`}
+              >
+                <div className="mb-4 flex justify-center">
+                  {getIcon(file)}
+                </div>
+
+                <h2 className="truncate text-center font-medium">
+                  {file.name}
+                </h2>
+
+                <p className="mt-2 truncate text-center text-xs text-zinc-500">
+                  {new Date(file.modifiedTime).toLocaleDateString()}
+                  {file.size ? ` · ${formatSize(file.size)}` : ""}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={
+            menu.file
+              ? buildFileMenu(menu.file)
+              : buildBackgroundMenu()
+          }
+          onClose={() => setMenu(null)}
+        />
+      )}
+
+      {dialog?.kind === "rename" && (
+        <RenameDialog
+          file={dialog.file}
+          busy={busy}
+          onCancel={() => setDialog(null)}
+          onSubmit={submitRename}
+        />
+      )}
+
+      {dialog?.kind === "delete" && (
+        <ConfirmDialog
+          title="Move to trash"
+          message={`"${dialog.file.name}" will be moved to your Google Drive trash. You can restore it from Drive within 30 days.`}
+          confirmLabel="Move to trash"
+          danger
+          busy={busy}
+          onCancel={() => setDialog(null)}
+          onConfirm={confirmDelete}
+        />
+      )}
+
+      {dialog?.kind === "share" && (
+        <ShareDialog
+          accountId={accountId}
+          file={dialog.file}
+          onClose={() => setDialog(null)}
+          onShared={(message) => notify(message)}
+        />
+      )}
     </main>
   );
 }
