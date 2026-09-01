@@ -4,6 +4,8 @@ type HistoryEntry =
     }
   | {
       type: "folder";
+      accountId: string;
+      accountLabel: string;
       id: string;
       name: string;
     };

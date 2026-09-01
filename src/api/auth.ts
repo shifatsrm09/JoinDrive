@@ -1,18 +1,31 @@
-const API = "http://localhost:5000/api";
+import { apiFetch } from "./client";
+
+export interface MeResponse {
+  success: boolean;
+  user: {
+    id: string;
+    accounts: {
+      _id: string;
+      googleId: string;
+      email: string;
+      name: string;
+      picture: string;
+      isPrimary?: boolean;
+    }[];
+  };
+}
+
+export interface LogoutResponse {
+  success: boolean;
+  message: string;
+}
 
 export async function getMe() {
-  const res = await fetch(`${API}/auth/me`, {
-    credentials: "include",
-  });
-
-  return res.json();
+  return apiFetch<MeResponse>("/auth/me");
 }
 
 export async function logout() {
-  const res = await fetch(`${API}/auth/logout`, {
+  return apiFetch<LogoutResponse>("/auth/logout", {
     method: "POST",
-    credentials: "include",
   });
-
-  return res.json();
 }
