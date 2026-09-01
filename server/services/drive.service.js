@@ -4,11 +4,50 @@ import { google } from "googleapis";
 import GoogleAccount from "../models/GoogleAccount.js";
 import { getAuthenticatedClient } from "./google.service.js";
 
+const FILE_FIELDS =
+  "id,name,mimeType,size,modifiedTime,iconLink,thumbnailLink,webViewLink,parents,shared,capabilities(canEdit,canRename,canDelete,canCopy,canShare,canDownload)";
+
+/**
+ * Google Docs formats have no bytes to download, they must be exported.
+ * Anything not listed here is downloaded as-is.
+ */
+const EXPORT_FORMATS = {
+  "application/vnd.google-apps.document": {
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    extension: "docx",
+  },
+  "application/vnd.google-apps.spreadsheet": {
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    extension: "xlsx",
+  },
+  "application/vnd.google-apps.presentation": {
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    extension: "pptx",
+  },
+  "application/vnd.google-apps.drawing": {
+    mimeType: "image/png",
+    extension: "png",
+  },
+};
+
+export const FOLDER_MIME = "application/vnd.google-apps.folder";
+
+/**
+ * Single quotes terminate a Drive query string, so any quote inside a
+ * caller supplied id has to be escaped before interpolation.
+ */
+function escapeQueryValue(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
 /**
  * Resolve which GoogleAccount a request should act on.
  *
  * Every lookup is scoped by userId, so one JoinDrive User can never
- * read another User's Drive by guessing an accountId.
+ * read or modify another User's Drive by guessing an accountId.
  *
  * When no accountId is supplied the primary (first connected) account
  * is used, which keeps the original single-account routes working.
@@ -52,6 +91,13 @@ async function getDriveClient(account) {
   });
 }
 
+/** Every mutation resolves the account first, so ownership is always checked. */
+async function driveFor(userId, accountId) {
+  const account = await resolveAccount(userId, accountId);
+
+  return getDriveClient(account);
+}
+
 function serializeAccount(account, storage, connected) {
   return {
     id: account._id,
@@ -64,6 +110,10 @@ function serializeAccount(account, storage, connected) {
     storage: storage || null,
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Accounts                                                            */
+/* ------------------------------------------------------------------ */
 
 /**
  * Every Google account linked to this JoinDrive User.
@@ -107,9 +157,7 @@ export async function getAccounts(userId) {
 }
 
 export async function getStorageInfo(userId, accountId) {
-  const account = await resolveAccount(userId, accountId);
-
-  const drive = await getDriveClient(account);
+  const drive = await driveFor(userId, accountId);
 
   const { data } = await drive.about.get({
     fields: "storageQuota",
@@ -130,18 +178,225 @@ export async function getDriveInfo(userId, accountId) {
   return serializeAccount(account, data.storageQuota, true);
 }
 
-export async function listFiles(userId, accountId, folderId = "root") {
-  const account = await resolveAccount(userId, accountId);
+/* ------------------------------------------------------------------ */
+/* Reading                                                             */
+/* ------------------------------------------------------------------ */
 
-  const drive = await getDriveClient(account);
+export async function listFiles(userId, accountId, folderId = "root") {
+  const drive = await driveFor(userId, accountId);
 
   const { data } = await drive.files.list({
-    q: `'${folderId}' in parents and trashed=false`,
-    fields:
-      "files(id,name,mimeType,size,modifiedTime,iconLink,thumbnailLink)",
+    q: `'${escapeQueryValue(folderId)}' in parents and trashed=false`,
+    fields: `files(${FILE_FIELDS})`,
     orderBy: "folder,name",
-    pageSize: 100,
+    pageSize: 200,
   });
 
   return data.files;
+}
+
+export async function getFile(userId, accountId, fileId) {
+  const drive = await driveFor(userId, accountId);
+
+  const { data } = await drive.files.get({
+    fileId,
+    fields: FILE_FIELDS,
+  });
+
+  return data;
+}
+
+/* ------------------------------------------------------------------ */
+/* Mutations                                                           */
+/* ------------------------------------------------------------------ */
+
+export async function renameFile(userId, accountId, fileId, name) {
+  const trimmed = String(name || "").trim();
+
+  if (!trimmed) {
+    throw new Error("Name cannot be empty");
+  }
+
+  const drive = await driveFor(userId, accountId);
+
+  const { data } = await drive.files.update({
+    fileId,
+    requestBody: { name: trimmed },
+    fields: FILE_FIELDS,
+  });
+
+  return data;
+}
+
+/**
+ * Delete moves the file to the Drive trash instead of destroying it.
+ * The user can still restore it from Google Drive.
+ */
+export async function trashFile(userId, accountId, fileId) {
+  const drive = await driveFor(userId, accountId);
+
+  const { data } = await drive.files.update({
+    fileId,
+    requestBody: { trashed: true },
+    fields: "id,name,trashed",
+  });
+
+  return data;
+}
+
+export async function copyFile(
+  userId,
+  accountId,
+  fileId,
+  targetFolderId = "root"
+) {
+  const drive = await driveFor(userId, accountId);
+
+  const source = await drive.files.get({
+    fileId,
+    fields: "id,name,mimeType",
+  });
+
+  if (source.data.mimeType === FOLDER_MIME) {
+    // The Drive API cannot copy a folder in one call.
+    throw new Error("Folders cannot be copied");
+  }
+
+  const { data } = await drive.files.copy({
+    fileId,
+    requestBody: {
+      name: source.data.name,
+      parents: [targetFolderId],
+    },
+    fields: FILE_FIELDS,
+  });
+
+  return data;
+}
+
+export async function moveFile(
+  userId,
+  accountId,
+  fileId,
+  targetFolderId = "root"
+) {
+  const drive = await driveFor(userId, accountId);
+
+  const current = await drive.files.get({
+    fileId,
+    fields: "id,parents",
+  });
+
+  const previousParents = (current.data.parents || []).join(",");
+
+  const { data } = await drive.files.update({
+    fileId,
+    addParents: targetFolderId,
+    removeParents: previousParents || undefined,
+    fields: FILE_FIELDS,
+  });
+
+  return data;
+}
+
+/**
+ * Share a file.
+ *
+ * `type: "anyone"` creates a link that anyone can open, which makes the
+ * file publicly reachable. `type: "user"` grants one email address.
+ * Notification emails are disabled so nothing is sent on the user's
+ * behalf without them asking.
+ */
+export async function shareFile(userId, accountId, fileId, options = {}) {
+  const { type = "anyone", role = "reader", email } = options;
+
+  if (!["anyone", "user"].includes(type)) {
+    throw new Error("Unsupported share type");
+  }
+
+  if (!["reader", "writer", "commenter"].includes(role)) {
+    throw new Error("Unsupported share role");
+  }
+
+  if (type === "user" && !email) {
+    throw new Error("An email address is required");
+  }
+
+  const drive = await driveFor(userId, accountId);
+
+  const requestBody = { type, role };
+
+  if (type === "user") {
+    requestBody.emailAddress = email;
+  }
+
+  await drive.permissions.create({
+    fileId,
+    requestBody,
+    sendNotificationEmail: false,
+  });
+
+  const { data } = await drive.files.get({
+    fileId,
+    fields: "id,name,webViewLink,shared",
+  });
+
+  return data;
+}
+
+/**
+ * Returns a readable stream plus the headers the browser needs.
+ * Google Docs formats are exported, everything else downloads as-is.
+ */
+export async function downloadFile(userId, accountId, fileId) {
+  const drive = await driveFor(userId, accountId);
+
+  const meta = await drive.files.get({
+    fileId,
+    fields: "id,name,mimeType,size",
+  });
+
+  const { name, mimeType, size } = meta.data;
+
+  if (mimeType === FOLDER_MIME) {
+    throw new Error("Folders cannot be downloaded");
+  }
+
+  const exportFormat = EXPORT_FORMATS[mimeType];
+
+  if (mimeType.startsWith("application/vnd.google-apps.")) {
+    if (!exportFormat) {
+      throw new Error("This Google file type cannot be downloaded");
+    }
+
+    const response = await drive.files.export(
+      {
+        fileId,
+        mimeType: exportFormat.mimeType,
+      },
+      { responseType: "stream" }
+    );
+
+    return {
+      stream: response.data,
+      filename: `${name}.${exportFormat.extension}`,
+      mimeType: exportFormat.mimeType,
+      size: null,
+    };
+  }
+
+  const response = await drive.files.get(
+    {
+      fileId,
+      alt: "media",
+    },
+    { responseType: "stream" }
+  );
+
+  return {
+    stream: response.data,
+    filename: name,
+    mimeType: mimeType || "application/octet-stream",
+    size: size || null,
+  };
 }

@@ -8,7 +8,7 @@ import Breadcrumb from "./Breadcrumb";
 import FileGrid from "../file/FileGrid";
 import ExplorerGrid from "../file/ExplorerGrid";
 
-import type { DriveAccount } from "../../types/drive";
+import type { Clipboard, DriveAccount } from "../../types/drive";
 
 type HistoryEntry =
   | {
@@ -44,6 +44,10 @@ export default function ExplorerLayout() {
   ]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  // The clipboard lives here so a copied file survives folder
+  // navigation and can be pasted somewhere else in the drive.
+  const [clipboard, setClipboard] = useState<Clipboard | null>(null);
 
   const current = history[currentIndex];
 
@@ -159,6 +163,8 @@ export default function ExplorerLayout() {
           <ExplorerGrid
             accountId={current.accountId}
             folderId={current.id}
+            clipboard={clipboard}
+            onClipboardChange={setClipboard}
             onOpenFolder={openFolder}
           />
         )}

@@ -1,4 +1,5 @@
 import { apiFetch } from "./client";
+import { API_BASE_URL } from "./config";
 import type { DriveAccount, DriveFile } from "../types/drive";
 
 export interface DriveAccountsResponse {
@@ -18,14 +19,29 @@ export interface DriveFilesResponse {
   files: DriveFile[];
 }
 
+export interface DriveFileResponse {
+  success: boolean;
+  file: DriveFile;
+}
+
+export interface ShareResponse {
+  success: boolean;
+  file: {
+    id: string;
+    name: string;
+    webViewLink?: string;
+    shared?: boolean;
+  };
+}
+
 /** Every Google account linked to the signed in JoinDrive user. */
 export function getAccounts() {
   return apiFetch<DriveAccountsResponse>("/drive/accounts");
 }
 
 /**
- * Routes are account scoped when an accountId is given and fall back to
- * the primary account when it is not.
+ * Read routes are account scoped when an accountId is given and fall
+ * back to the primary account when it is not.
  */
 function scoped(accountId: string | undefined, path: string) {
   return accountId ? `/drive/${accountId}${path}` : `/drive${path}`;
@@ -41,4 +57,86 @@ export function getFiles(folderId = "root", accountId?: string) {
       folderId
     )}`
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* File actions. These always target one explicit account.             */
+/* ------------------------------------------------------------------ */
+
+function filePath(accountId: string, fileId: string) {
+  return `/drive/${accountId}/files/${encodeURIComponent(fileId)}`;
+}
+
+export function renameFile(
+  accountId: string,
+  fileId: string,
+  name: string
+) {
+  return apiFetch<DriveFileResponse>(
+    `${filePath(accountId, fileId)}/rename`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }
+  );
+}
+
+/** Moves the file to the Drive trash. It is recoverable from Drive. */
+export function deleteFile(accountId: string, fileId: string) {
+  return apiFetch<{ success: boolean; message: string }>(
+    filePath(accountId, fileId),
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+export function copyFile(
+  accountId: string,
+  fileId: string,
+  targetFolderId: string
+) {
+  return apiFetch<DriveFileResponse>(
+    `${filePath(accountId, fileId)}/copy`,
+    {
+      method: "POST",
+      body: JSON.stringify({ targetFolderId }),
+    }
+  );
+}
+
+export function moveFile(
+  accountId: string,
+  fileId: string,
+  targetFolderId: string
+) {
+  return apiFetch<DriveFileResponse>(
+    `${filePath(accountId, fileId)}/move`,
+    {
+      method: "POST",
+      body: JSON.stringify({ targetFolderId }),
+    }
+  );
+}
+
+export function shareFile(
+  accountId: string,
+  fileId: string,
+  options: { type: "anyone" | "user"; role: string; email?: string }
+) {
+  return apiFetch<ShareResponse>(
+    `${filePath(accountId, fileId)}/share`,
+    {
+      method: "POST",
+      body: JSON.stringify(options),
+    }
+  );
+}
+
+/**
+ * Downloads run as a normal top level navigation rather than fetch, so
+ * the browser handles the save dialog and the session cookie is sent.
+ */
+export function downloadUrl(accountId: string, fileId: string) {
+  return `${API_BASE_URL}${filePath(accountId, fileId)}/download`;
 }

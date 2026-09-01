@@ -7,6 +7,13 @@ import {
   getStorage,
   getInfo,
   getFiles,
+  getFileDetails,
+  rename,
+  remove,
+  copy,
+  move,
+  share,
+  download,
 } from "../controllers/drive.controller.js";
 
 const router = Router();
@@ -25,5 +32,15 @@ router.get("/files", getFiles);
 router.get("/:accountId/info", getInfo);
 router.get("/:accountId/storage", getStorage);
 router.get("/:accountId/files", getFiles);
+
+// File actions. accountId is required so a write can never be applied
+// to the wrong Drive.
+router.get("/:accountId/files/:fileId", getFileDetails);
+router.get("/:accountId/files/:fileId/download", download);
+router.patch("/:accountId/files/:fileId/rename", rename);
+router.post("/:accountId/files/:fileId/copy", copy);
+router.post("/:accountId/files/:fileId/move", move);
+router.post("/:accountId/files/:fileId/share", share);
+router.delete("/:accountId/files/:fileId", remove);
 
 export default router;
