@@ -1,7 +1,8 @@
+import { useRef, useState } from "react";
 import {
   Menu,
   Search,
-  Bell,
+  X,
   CircleUser,
   LogOut,
   ChevronLeft,
@@ -10,12 +11,17 @@ import {
 import { useNavigate } from "react-router-dom";
 import { logout } from "../../api/auth";
 import { useAuth } from "../../context/AuthContext";
+import ContextMenu from "../ui/ContextMenu";
+import type { MenuItem } from "../ui/ContextMenu";
 
 type ToolbarProps = {
   canGoBack: boolean;
   canGoForward: boolean;
   onBack: () => void;
   onForward: () => void;
+  onToggleSidebar: () => void;
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
 };
 
 export default function Toolbar({
@@ -23,9 +29,23 @@ export default function Toolbar({
   canGoForward,
   onBack,
   onForward,
+  onToggleSidebar,
+  searchQuery,
+  onSearchChange,
 }: ToolbarProps) {
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  const { user, setUser } = useAuth();
+
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const [profileMenu, setProfileMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const primaryAccount =
+    user?.accounts?.find((account) => account.isPrimary) ??
+    user?.accounts?.[0] ??
+    null;
 
   async function handleLogout() {
     try {
@@ -36,21 +56,52 @@ export default function Toolbar({
     }
   }
 
+  function openProfileMenu() {
+    const rect = profileButtonRef.current?.getBoundingClientRect();
+
+    if (!rect) {
+      return;
+    }
+
+    setProfileMenu({ x: rect.right - 240, y: rect.bottom + 8 });
+  }
+
+  const profileItems: MenuItem[] = [
+    {
+      kind: "item",
+      label: primaryAccount?.email || "Signed in",
+      icon: CircleUser,
+      disabled: true,
+      onSelect: () => {},
+    },
+    { kind: "separator" },
+    {
+      kind: "item",
+      label: "Log out",
+      icon: LogOut,
+      danger: true,
+      onSelect: handleLogout,
+    },
+  ];
+
   return (
     <header className="flex h-16 items-center justify-between border-b border-zinc-800 bg-[#202020] px-6">
       {/* Left */}
       <div className="flex items-center gap-3">
-        <button className="rounded-lg p-2 transition hover:bg-zinc-700">
+        <button
+          onClick={onToggleSidebar}
+          title="Toggle sidebar"
+          className="rounded-lg p-2 transition hover:bg-zinc-700"
+        >
           <Menu size={22} />
         </button>
 
         <button
           onClick={onBack}
           disabled={!canGoBack}
+          title="Back"
           className={`rounded-lg p-2 transition ${
-            canGoBack
-              ? "hover:bg-zinc-700"
-              : "cursor-not-allowed opacity-40"
+            canGoBack ? "hover:bg-zinc-700" : "cursor-not-allowed opacity-40"
           }`}
         >
           <ChevronLeft size={20} />
@@ -59,6 +110,7 @@ export default function Toolbar({
         <button
           onClick={onForward}
           disabled={!canGoForward}
+          title="Forward"
           className={`rounded-lg p-2 transition ${
             canGoForward
               ? "hover:bg-zinc-700"
@@ -67,43 +119,62 @@ export default function Toolbar({
         >
           <ChevronRight size={20} />
         </button>
-
-        <h1 className="ml-2 text-xl font-semibold tracking-tight">
-          JoinDrive
-        </h1>
       </div>
 
       {/* Center */}
       <div className="hidden w-full max-w-xl px-10 md:flex">
-        <div className="flex w-full items-center gap-3 rounded-xl bg-[#2B2B2B] px-4 py-2">
-          <Search size={18} className="text-zinc-400" />
+        <div className="flex w-full items-center gap-3 rounded-xl bg-[#2B2B2B] px-4 py-2 focus-within:ring-1 focus-within:ring-[#0E639C]">
+          <Search size={18} className="shrink-0 text-zinc-400" />
 
           <input
             type="text"
+            value={searchQuery}
+            onChange={(event) => onSearchChange(event.target.value)}
             placeholder="Search your drives..."
             className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-500"
           />
+
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange("")}
+              title="Clear search"
+              className="shrink-0 rounded p-0.5 text-zinc-500 transition hover:bg-zinc-700 hover:text-white"
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
       </div>
 
       {/* Right */}
-      <div className="flex items-center gap-2">
-        <button className="rounded-lg p-2 transition hover:bg-zinc-700">
-          <Bell size={20} />
-        </button>
-
-        <button className="rounded-full p-1 transition hover:bg-zinc-700">
-          <CircleUser size={32} />
-        </button>
-
+      <div className="flex items-center gap-3">
         <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
+          ref={profileButtonRef}
+          onClick={openProfileMenu}
+          title={primaryAccount?.email || "Account"}
+          className="flex items-center gap-2 rounded-full p-1 pr-2 transition hover:bg-zinc-700"
         >
-          <LogOut size={16} />
-          Logout
+          {primaryAccount?.picture ? (
+            <img
+              src={primaryAccount.picture}
+              alt=""
+              referrerPolicy="no-referrer"
+              className="h-8 w-8 rounded-full ring-1 ring-zinc-600"
+            />
+          ) : (
+            <CircleUser size={32} />
+          )}
         </button>
       </div>
+
+      {profileMenu && (
+        <ContextMenu
+          x={profileMenu.x}
+          y={profileMenu.y}
+          items={profileItems}
+          onClose={() => setProfileMenu(null)}
+        />
+      )}
     </header>
   );
 }

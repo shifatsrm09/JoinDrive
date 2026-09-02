@@ -14,3 +14,25 @@ body {
   color: white;
   font-family: "Segoe UI", sans-serif;
 }
+
+/*
+ * JoinDrive behaves like a desktop file explorer, so stray text
+ * selection (dragging over file names, breadcrumbs, buttons) is
+ * disabled site-wide. Inputs, textareas, and anything explicitly
+ * marked editable stay selectable so typing still works normally.
+ */
+*,
+*::before,
+*::after {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+}

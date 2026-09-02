@@ -3,6 +3,15 @@ type HistoryEntry =
       type: "dashboard";
     }
   | {
+      type: "recent";
+    }
+  | {
+      type: "starred";
+    }
+  | {
+      type: "trash";
+    }
+  | {
       type: "folder";
       accountId: string;
       accountLabel: string;
@@ -14,6 +23,13 @@ type BreadcrumbProps = {
   history: HistoryEntry[];
   currentIndex: number;
   onNavigate: (index: number) => void;
+};
+
+const LABELS: Record<Exclude<HistoryEntry["type"], "folder">, string> = {
+  dashboard: "Connected Drives",
+  recent: "Recent",
+  starred: "Favorites",
+  trash: "Trash",
 };
 
 export default function Breadcrumb({
@@ -28,11 +44,7 @@ export default function Breadcrumb({
           key={index}
           className="flex items-center gap-2 whitespace-nowrap"
         >
-          {index !== 0 && (
-            <span className="text-zinc-500">
-              /
-            </span>
-          )}
+          {index !== 0 && <span className="text-zinc-500">/</span>}
 
           <button
             onClick={() => onNavigate(index)}
@@ -42,9 +54,7 @@ export default function Breadcrumb({
                 : "text-zinc-300 hover:bg-zinc-700"
             }`}
           >
-            {item.type === "dashboard"
-              ? "Connected Drives"
-              : item.name}
+            {item.type === "folder" ? item.name : LABELS[item.type]}
           </button>
         </div>
       ))}

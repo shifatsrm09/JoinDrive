@@ -24,6 +24,26 @@ export interface DriveFileResponse {
   file: DriveFile;
 }
 
+/** A file returned by a cross-account view, tagged with its source Drive. */
+export interface AggregateFile extends DriveFile {
+  accountId: string;
+  accountEmail: string;
+}
+
+export type AggregateView = "recent" | "starred" | "trash";
+
+export interface AggregateResponse {
+  success: boolean;
+  view: AggregateView;
+  files: AggregateFile[];
+}
+
+export interface SearchResponse {
+  success: boolean;
+  query: string;
+  files: AggregateFile[];
+}
+
 export interface ShareResponse {
   success: boolean;
   file: {
@@ -59,6 +79,20 @@ export function getFiles(folderId = "root", accountId?: string) {
   );
 }
 
+/** Recent, Favorites, or Trash, merged across every linked account. */
+export function getAggregate(view: AggregateView) {
+  return apiFetch<AggregateResponse>(
+    `/drive/aggregate?view=${encodeURIComponent(view)}`
+  );
+}
+
+/** Filename search across every linked account. */
+export function searchFiles(query: string) {
+  return apiFetch<SearchResponse>(
+    `/drive/search?q=${encodeURIComponent(query)}`
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* File actions. These always target one explicit account.             */
 /* ------------------------------------------------------------------ */
@@ -87,6 +121,16 @@ export function deleteFile(accountId: string, fileId: string) {
     filePath(accountId, fileId),
     {
       method: "DELETE",
+    }
+  );
+}
+
+/** Restores a file out of the Drive trash. */
+export function restoreFile(accountId: string, fileId: string) {
+  return apiFetch<DriveFileResponse>(
+    `${filePath(accountId, fileId)}/restore`,
+    {
+      method: "POST",
     }
   );
 }

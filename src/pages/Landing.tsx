@@ -42,10 +42,16 @@ export default function Landing() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#1b1b1b]">
       <div className="text-center">
+        <img
+          src="/favicon.svg"
+          alt=""
+          className="mx-auto mb-4 h-16 w-16"
+        />
+
         <h1 className="mb-3 text-6xl font-bold text-white">JoinDrive</h1>
 
         <p className="mb-8 text-gray-400">
-          Windows Explorer for Google Drive
+          All your Google Drives, in one place
         </p>
 
         {errorKey && (
@@ -63,9 +69,9 @@ export default function Landing() {
 
         <button
           onClick={handleLogin}
-          className="rounded-lg bg-blue-600 px-8 py-3 text-white transition hover:bg-blue-700"
+          className="rounded-lg bg-[#0E639C] px-8 py-3 font-medium text-white transition hover:bg-[#1177bb]"
         >
-          Continue
+          Continue with Google
         </button>
       </div>
     </div>
