@@ -10,6 +10,9 @@ import {
   moveFile,
   shareFile,
   downloadFile,
+  listAggregated,
+  searchFiles,
+  restoreFile,
 } from "../services/drive.service.js";
 
 /**
@@ -39,6 +42,7 @@ const BAD_REQUEST_ERRORS = new Set([
   "Unsupported share type",
   "Unsupported share role",
   "An email address is required",
+  "Unsupported view",
 ]);
 
 function fail(res, error) {
@@ -149,6 +153,41 @@ export async function getFileDetails(req, res) {
   }
 }
 
+/**
+ * Recent / Favorites / Trash. These read across every linked account
+ * at once, unlike the rest of the read routes which are per account.
+ */
+export async function getAggregate(req, res) {
+  try {
+    const view = req.query.view;
+
+    const files = await listAggregated(req.user._id, view);
+
+    return res.json({
+      success: true,
+      view,
+      files,
+    });
+  } catch (error) {
+    return fail(res, error);
+  }
+}
+
+/** Filename search across every linked account. */
+export async function search(req, res) {
+  try {
+    const files = await searchFiles(req.user._id, req.query.q);
+
+    return res.json({
+      success: true,
+      query: req.query.q || "",
+      files,
+    });
+  } catch (error) {
+    return fail(res, error);
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Mutations                                                           */
 /* ------------------------------------------------------------------ */
@@ -183,6 +222,24 @@ export async function remove(req, res) {
       success: true,
       file,
       message: "Moved to trash",
+    });
+  } catch (error) {
+    return fail(res, error);
+  }
+}
+
+export async function restore(req, res) {
+  try {
+    const file = await restoreFile(
+      req.user._id,
+      accountIdFrom(req),
+      req.params.fileId
+    );
+
+    return res.json({
+      success: true,
+      file,
+      message: "Restored from trash",
     });
   } catch (error) {
     return fail(res, error);

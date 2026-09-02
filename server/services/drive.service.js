@@ -206,6 +206,109 @@ export async function getFile(userId, accountId, fileId) {
   return data;
 }
 
+const AGGREGATE_QUERIES = {
+  recent: {
+    q: "trashed = false",
+    orderBy: "modifiedTime desc",
+    pageSize: 30,
+  },
+  starred: {
+    q: "starred = true and trashed = false",
+    orderBy: "modifiedTime desc",
+    pageSize: 50,
+  },
+  trash: {
+    q: "trashed = true",
+    orderBy: "modifiedTime desc",
+    pageSize: 50,
+  },
+};
+
+/**
+ * Runs the same Drive query across every linked account and merges the
+ * results into one list, newest first. Used for the Recent, Favorites,
+ * and Trash sidebar views, which are conceptually "all my drives" and
+ * not scoped to a single account.
+ *
+ * A single account failing (revoked access, needs reconnect) does not
+ * take down the whole view, the same way the dashboard degrades.
+ */
+async function listAcrossAccounts(userId, driveListParams) {
+  const accounts = await GoogleAccount.find({ userId }).sort({
+    isPrimary: -1,
+    createdAt: 1,
+  });
+
+  const results = await Promise.allSettled(
+    accounts.map(async (account) => {
+      const drive = await getDriveClient(account);
+
+      const { data } = await drive.files.list({
+        ...driveListParams,
+        fields: `files(${FILE_FIELDS})`,
+      });
+
+      return (data.files || []).map((file) => ({
+        ...file,
+        accountId: String(account._id),
+        accountEmail: account.email,
+      }));
+    })
+  );
+
+  const files = results
+    .filter((result) => result.status === "fulfilled")
+    .flatMap((result) => result.value);
+
+  files.sort(
+    (a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime)
+  );
+
+  return files;
+}
+
+export async function listAggregated(userId, view) {
+  const config = AGGREGATE_QUERIES[view];
+
+  if (!config) {
+    throw new Error("Unsupported view");
+  }
+
+  return listAcrossAccounts(userId, {
+    q: config.q,
+    orderBy: config.orderBy,
+    pageSize: config.pageSize,
+  });
+}
+
+/** Searches every linked account's Drive by filename. */
+export async function searchFiles(userId, term) {
+  const trimmed = String(term || "").trim();
+
+  if (!trimmed) {
+    return [];
+  }
+
+  return listAcrossAccounts(userId, {
+    q: `name contains '${escapeQueryValue(trimmed)}' and trashed = false`,
+    orderBy: "modifiedTime desc",
+    pageSize: 25,
+  });
+}
+
+/** Restores a file out of the Drive trash. */
+export async function restoreFile(userId, accountId, fileId) {
+  const drive = await driveFor(userId, accountId);
+
+  const { data } = await drive.files.update({
+    fileId,
+    requestBody: { trashed: false },
+    fields: FILE_FIELDS,
+  });
+
+  return data;
+}
+
 /* ------------------------------------------------------------------ */
 /* Mutations                                                           */
 /* ------------------------------------------------------------------ */

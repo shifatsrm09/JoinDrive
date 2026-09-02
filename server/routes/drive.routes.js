@@ -8,8 +8,11 @@ import {
   getInfo,
   getFiles,
   getFileDetails,
+  getAggregate,
+  search,
   rename,
   remove,
+  restore,
   copy,
   move,
   share,
@@ -28,6 +31,11 @@ router.get("/info", getInfo);
 router.get("/storage", getStorage);
 router.get("/files", getFiles);
 
+// Cross-account views: Recent, Favorites, Trash, and search. These read
+// from every linked account at once instead of a single Drive.
+router.get("/aggregate", getAggregate);
+router.get("/search", search);
+
 // A specific linked account
 router.get("/:accountId/info", getInfo);
 router.get("/:accountId/storage", getStorage);
@@ -41,6 +49,7 @@ router.patch("/:accountId/files/:fileId/rename", rename);
 router.post("/:accountId/files/:fileId/copy", copy);
 router.post("/:accountId/files/:fileId/move", move);
 router.post("/:accountId/files/:fileId/share", share);
+router.post("/:accountId/files/:fileId/restore", restore);
 router.delete("/:accountId/files/:fileId", remove);
 
 export default router;
