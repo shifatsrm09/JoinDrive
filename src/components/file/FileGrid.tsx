@@ -2,6 +2,7 @@ import { Plus } from "lucide-react";
 
 import DriveCard from "../drive/DriveCard";
 import useDriveAccounts from "../../hooks/useDriveAccounts";
+import { useAuth } from "../../context/AuthContext";
 import { GOOGLE_CONNECT_URL } from "../../api/config";
 import type { DriveAccount } from "../../types/drive";
 
@@ -16,10 +17,18 @@ export default function FileGrid({
 }: FileGridProps) {
   // refreshKey changes when a Drive was just linked, which refetches
   // the list so the new card appears immediately.
-  const { accounts, loading, error } = useDriveAccounts(refreshKey);
+  const { accounts, loading, error, reload } = useDriveAccounts(refreshKey);
+  const { refreshUser } = useAuth();
 
   function handleAddDrive() {
     window.location.href = GOOGLE_CONNECT_URL;
+  }
+
+  // A disconnected Drive needs to disappear from both this grid and
+  // the sidebar/toolbar, which read the account list from AuthContext.
+  function handleRemoved() {
+    reload();
+    refreshUser();
   }
 
   return (
@@ -48,6 +57,7 @@ export default function FileGrid({
               key={account.id}
               account={account}
               onOpen={() => onOpenDrive(account)}
+              onRemoved={handleRemoved}
             />
           ))}
 

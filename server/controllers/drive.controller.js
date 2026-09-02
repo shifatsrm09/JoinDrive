@@ -4,6 +4,7 @@ import {
   getDriveInfo,
   listFiles,
   getFile,
+  disconnectAccount,
   renameFile,
   trashFile,
   copyFile,
@@ -80,6 +81,24 @@ export async function listAccounts(req, res) {
     return res.json({
       success: true,
       accounts,
+    });
+  } catch (error) {
+    return fail(res, error);
+  }
+}
+
+/** Unlinks a Google account. Only the JoinDrive record is removed. */
+export async function removeAccount(req, res) {
+  try {
+    const result = await disconnectAccount(
+      req.user._id,
+      req.params.accountId
+    );
+
+    return res.json({
+      success: true,
+      ...result,
+      message: "Drive disconnected",
     });
   } catch (error) {
     return fail(res, error);

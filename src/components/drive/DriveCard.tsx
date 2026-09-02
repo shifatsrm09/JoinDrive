@@ -1,16 +1,24 @@
+import { useRef, useState } from "react";
 import {
   HardDrive,
   CheckCircle2,
   AlertTriangle,
   MoreVertical,
   Star,
+  Unlink,
 } from "lucide-react";
 
+import ContextMenu from "../ui/ContextMenu";
+import type { MenuItem } from "../ui/ContextMenu";
+import ConfirmDialog from "../file/ConfirmDialog";
+
+import { disconnectAccount } from "../../api/drive";
 import type { DriveAccount } from "../../types/drive";
 
 type DriveCardProps = {
   account: DriveAccount;
   onOpen: () => void;
+  onRemoved?: () => void;
 };
 
 const GB = 1024 * 1024 * 1024;
@@ -26,11 +34,58 @@ function toGb(value?: string) {
 export default function DriveCard({
   account,
   onOpen,
+  onRemoved,
 }: DriveCardProps) {
   const used = toGb(account.storage?.usage);
   const total = toGb(account.storage?.limit);
 
   const percentage = total > 0 ? (used / total) * 100 : 0;
+
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  function openMenu() {
+    const rect = menuButtonRef.current?.getBoundingClientRect();
+
+    if (!rect) {
+      return;
+    }
+
+    setMenuPos({ x: rect.right - 200, y: rect.bottom + 6 });
+  }
+
+  const menuItems: MenuItem[] = [
+    {
+      kind: "item",
+      label: "Disconnect Drive",
+      icon: Unlink,
+      danger: true,
+      onSelect: () => setConfirming(true),
+    },
+  ];
+
+  async function handleDisconnect() {
+    try {
+      setBusy(true);
+      setError("");
+
+      await disconnectAccount(account.id);
+
+      setConfirming(false);
+      onRemoved?.();
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Could not disconnect this Drive"
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div
@@ -74,8 +129,10 @@ export default function DriveCard({
         </div>
 
         <button
+          ref={menuButtonRef}
           onClick={(e) => {
             e.stopPropagation();
+            openMenu();
           }}
           className="shrink-0 rounded-lg p-2 transition hover:bg-zinc-700"
         >
@@ -121,6 +178,41 @@ export default function DriveCard({
           </>
         )}
       </div>
+
+      {menuPos && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ContextMenu
+            x={menuPos.x}
+            y={menuPos.y}
+            items={menuItems}
+            onClose={() => setMenuPos(null)}
+          />
+        </div>
+      )}
+
+      {confirming && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ConfirmDialog
+            title="Disconnect this Drive"
+            message={
+              error ||
+              `"${account.email}" will be removed from JoinDrive. Your files stay in Google Drive untouched, and you can reconnect this account at any time.${
+                account.isPrimary
+                  ? " This is your primary account: you'll sign back in with a different connected Drive next time."
+                  : ""
+              }`
+            }
+            confirmLabel="Disconnect"
+            danger
+            busy={busy}
+            onCancel={() => {
+              setConfirming(false);
+              setError("");
+            }}
+            onConfirm={handleDisconnect}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -59,6 +59,16 @@ export function getAccounts() {
   return apiFetch<DriveAccountsResponse>("/drive/accounts");
 }
 
+/** Unlinks a Google account. Only removes JoinDrive's own record. */
+export function disconnectAccount(accountId: string) {
+  return apiFetch<{ success: boolean; message: string }>(
+    `/drive/accounts/${encodeURIComponent(accountId)}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
 /**
  * Read routes are account scoped when an accountId is given and fall
  * back to the primary account when it is not.

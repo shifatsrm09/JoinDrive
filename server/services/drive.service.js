@@ -206,6 +206,33 @@ export async function getFile(userId, accountId, fileId) {
   return data;
 }
 
+/**
+ * Unlinks a Google account from the JoinDrive user.
+ *
+ * This only deletes JoinDrive's own record; it does not revoke the
+ * Google OAuth grant, so the user can always reconnect later. Any
+ * account can be removed, including the primary one: on the next
+ * Google sign in, googleCallback already promotes another linked
+ * account to primary automatically if none remains, and creates a
+ * fresh User if none are left at all.
+ */
+export async function disconnectAccount(userId, accountId) {
+  if (!mongoose.Types.ObjectId.isValid(accountId)) {
+    throw new Error("Invalid account id");
+  }
+
+  const account = await GoogleAccount.findOneAndDelete({
+    _id: accountId,
+    userId,
+  });
+
+  if (!account) {
+    throw new Error("Google account not found");
+  }
+
+  return { id: account._id, email: account.email };
+}
+
 const AGGREGATE_QUERIES = {
   recent: {
     q: "trashed = false",

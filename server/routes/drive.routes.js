@@ -4,6 +4,7 @@ import { protect } from "../middleware/protect.js";
 
 import {
   listAccounts,
+  removeAccount,
   getStorage,
   getInfo,
   getFiles,
@@ -25,6 +26,7 @@ router.use(protect);
 
 // All Google accounts linked to the authenticated JoinDrive User
 router.get("/accounts", listAccounts);
+router.delete("/accounts/:accountId", removeAccount);
 
 // Primary account (kept so existing behaviour does not break)
 router.get("/info", getInfo);
