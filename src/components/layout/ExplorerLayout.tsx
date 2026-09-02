@@ -10,7 +10,6 @@ import FileGrid from "../file/FileGrid";
 import ExplorerGrid from "../file/ExplorerGrid";
 import AggregateGrid from "../file/AggregateGrid";
 
-import { useAuth } from "../../context/AuthContext";
 import type { Clipboard, DriveAccount } from "../../types/drive";
 
 type HistoryEntry =
@@ -49,7 +48,6 @@ const MOUSE_FORWARD_BUTTON = 4;
 
 export default function ExplorerLayout() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user } = useAuth();
 
   const [history, setHistory] = useState<HistoryEntry[]>([
     { type: "dashboard" },
@@ -176,25 +174,6 @@ export default function ExplorerLayout() {
     setCurrentIndex(index);
   }
 
-  function handleSelectMyDrive() {
-    const primary =
-      user?.accounts?.find((account) => account.isPrimary) ??
-      user?.accounts?.[0];
-
-    if (!primary) {
-      pushEntry({ type: "dashboard" });
-      return;
-    }
-
-    pushEntry({
-      type: "folder",
-      accountId: primary._id,
-      accountLabel: primary.email,
-      id: "root",
-      name: primary.email,
-    });
-  }
-
   const sidebarActiveView: SidebarView =
     current.type === "folder" ? "folder" : current.type;
 
@@ -208,7 +187,6 @@ export default function ExplorerLayout() {
         <Sidebar
           activeView={sidebarActiveView}
           onNavigateHome={() => pushEntry({ type: "dashboard" })}
-          onSelectMyDrive={handleSelectMyDrive}
           onSelectRecent={() => pushEntry({ type: "recent" })}
           onSelectFavorites={() => pushEntry({ type: "starred" })}
           onSelectTrash={() => pushEntry({ type: "trash" })}

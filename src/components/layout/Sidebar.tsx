@@ -27,7 +27,6 @@ type SidebarAccount = {
 type SidebarProps = {
   activeView: SidebarView;
   onNavigateHome: () => void;
-  onSelectMyDrive: () => void;
   onSelectRecent: () => void;
   onSelectFavorites: () => void;
   onSelectTrash: () => void;
@@ -37,7 +36,6 @@ type SidebarProps = {
 export default function Sidebar({
   activeView,
   onNavigateHome,
-  onSelectMyDrive,
   onSelectRecent,
   onSelectFavorites,
   onSelectTrash,
@@ -54,12 +52,6 @@ export default function Sidebar({
     onSelect: () => void;
   }[] = [
     { icon: House, label: "Home", view: "dashboard", onSelect: onNavigateHome },
-    {
-      icon: HardDrive,
-      label: "My Drive",
-      view: "folder",
-      onSelect: onSelectMyDrive,
-    },
     {
       icon: Star,
       label: "Favorites",
