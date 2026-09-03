@@ -76,7 +76,7 @@ export default function Sidebar({
       <button
         onClick={onNavigateHome}
         title="Go to home"
-        className="flex items-center gap-2.5 border-b border-zinc-800 p-5 text-left transition hover:bg-zinc-800/60"
+        className="flex h-16 shrink-0 items-center gap-2.5 border-b border-zinc-800 px-5 text-left transition hover:bg-zinc-800/60"
       >
         <img
           src={driveIcon}
