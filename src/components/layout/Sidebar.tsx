@@ -11,6 +11,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { GOOGLE_CONNECT_URL } from "../../api/config";
 import { useAuth } from "../../context/AuthContext";
+import driveIcon from "../../assets/icon/drive-icon.png";
 
 export type SidebarView =
   | "dashboard"
@@ -77,7 +78,11 @@ export default function Sidebar({
         title="Go to home"
         className="flex items-center gap-2.5 border-b border-zinc-800 p-5 text-left transition hover:bg-zinc-800/60"
       >
-        <img src="/favicon.svg" alt="" className="h-7 w-7 shrink-0" />
+        <img
+          src={driveIcon}
+          alt=""
+          className="h-9 w-9 shrink-0 object-contain"
+        />
         <span className="text-lg font-semibold tracking-tight text-white">
           JoinDrive
         </span>

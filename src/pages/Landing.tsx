@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
 import { GOOGLE_LOGIN_URL } from "../api/config";
+import driveIcon from "../assets/icon/drive-icon.png";
 
 const ERROR_MESSAGES: Record<string, string> = {
   secondary_account:
@@ -44,9 +45,9 @@ export default function Landing() {
     <div className="flex min-h-screen items-center justify-center bg-[#1b1b1b]">
       <div className="text-center">
         <img
-          src="/favicon.svg"
+          src={driveIcon}
           alt=""
-          className="mx-auto mb-4 h-16 w-16"
+          className="mx-auto mb-4 h-16 w-16 object-contain"
         />
 
         <h1 className="mb-3 text-6xl font-bold text-white">JoinDrive</h1>
