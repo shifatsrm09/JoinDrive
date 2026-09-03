@@ -27,6 +27,12 @@ export interface DriveCapabilities {
   canDownload?: boolean;
 }
 
+export interface DriveOwner {
+  displayName?: string;
+  emailAddress?: string;
+  me?: boolean;
+}
+
 export interface DriveFile {
   id: string;
   name: string;
@@ -38,6 +44,7 @@ export interface DriveFile {
   webViewLink?: string;
   parents?: string[];
   shared?: boolean;
+  owners?: DriveOwner[];
   capabilities?: DriveCapabilities;
 }
 

@@ -150,6 +150,25 @@ function formatSize(size?: string) {
   }`;
 }
 
+/**
+ * Just the local part of the owner's email (the bit before the "@"),
+ * the way Google Drive's own list view shows it. Falls back to the
+ * display name if there's no email for some reason.
+ */
+function ownerLabel(file: DriveFile) {
+  const owner = file.owners?.[0];
+
+  if (!owner) {
+    return "—";
+  }
+
+  if (owner.emailAddress?.includes("@")) {
+    return owner.emailAddress.split("@")[0];
+  }
+
+  return owner.displayName || owner.emailAddress || "—";
+}
+
 export default function ExplorerGrid({
   accountId,
   folderId,
@@ -764,6 +783,10 @@ export default function ExplorerGrid({
               Name
             </button>
 
+            <span className="hidden w-28 shrink-0 text-left sm:block">
+              Owner
+            </span>
+
             <button
               onClick={() => setSortKey("modified")}
               className={`hidden w-40 shrink-0 text-left transition hover:text-zinc-200 sm:block ${
@@ -823,6 +846,10 @@ export default function ExplorerGrid({
 
                 <span className="flex-1 truncate text-sm">
                   {file.name}
+                </span>
+
+                <span className="hidden w-28 shrink-0 truncate text-sm text-zinc-500 sm:block">
+                  {ownerLabel(file)}
                 </span>
 
                 <span className="hidden w-40 shrink-0 truncate text-sm text-zinc-500 sm:block">
