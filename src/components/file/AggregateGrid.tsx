@@ -114,7 +114,6 @@ export default function AggregateGrid({
     let cancelled = false;
     setLoading(true);
 
-    // Debounce search keystrokes; the other views load immediately.
     const delay = mode === "search" ? 350 : 0;
 
     const timer = window.setTimeout(async () => {

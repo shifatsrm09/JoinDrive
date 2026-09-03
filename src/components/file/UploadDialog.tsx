@@ -27,21 +27,12 @@ export type UploadLocation = {
 
 type UploadDialogProps = {
   onClose: () => void;
-  /**
-   * Fired once uploading finishes, so the caller can jump the explorer
-   * to the destination folder and refresh it.
-   */
   onUploaded: (
     accountId: string,
     accountLabel: string,
     folderId: string,
     folderName: string
   ) => void;
-  /**
-   * When the person opens Upload while already browsing a folder, that
-   * folder is the destination and the drive/folder picking steps are
-   * skipped entirely.
-   */
   initialLocation?: UploadLocation;
 };
 
@@ -108,16 +99,12 @@ export default function UploadDialog({
   const [items, setItems] = useState<UploadItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Skip the account picker entirely when there is only one Drive, as
-  // long as the caller did not already lock the destination.
   useEffect(() => {
     if (!locked && accounts.length === 1 && step === "account") {
       selectAccount(accounts[0]._id, accounts[0].email);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The locked flow never browses folders, so it never needs this list.
   useEffect(() => {
     if (locked || step !== "folder" || !accountId || !currentFolder) {
       return;
@@ -189,7 +176,6 @@ export default function UploadDialog({
 
       const res = await createFolder(accountId, currentFolder.id, trimmed);
 
-      // Step straight into the folder just created, ready to upload.
       setPath((prev) => [...prev, { id: res.file.id, name: res.file.name }]);
       setCreatingFolder(false);
     } catch (err: unknown) {
@@ -227,7 +213,6 @@ export default function UploadDialog({
   async function runUploads(list: UploadItem[]) {
     for (let i = 0; i < list.length; i++) {
       if (list[i].status === "error") {
-        // Already flagged as too large, skip straight past it.
         continue;
       }
 
@@ -346,7 +331,6 @@ export default function UploadDialog({
 
       {step === "folder" && !locked && (
         <div className="space-y-3">
-          {/* Breadcrumb */}
           <div className="flex flex-wrap items-center gap-1 text-xs text-zinc-400">
             {accounts.length > 1 && (
               <>
@@ -378,7 +362,6 @@ export default function UploadDialog({
             ))}
           </div>
 
-          {/* Folder list */}
           <div className="h-56 overflow-y-auto rounded-lg border border-zinc-700">
             {creatingFolder && (
               <form

@@ -7,13 +7,6 @@ type RequireAuthProps = {
   children: ReactNode;
 };
 
-/**
- * Guards routes that need a signed in JoinDrive user (currently just
- * /explorer). Visiting a protected URL directly while logged out used
- * to render the page anyway, which just showed a broken empty
- * dashboard once every API call came back 401. This redirects to the
- * landing page instead, before any of that ever renders.
- */
 export default function RequireAuth({ children }: RequireAuthProps) {
   const { user, loading } = useAuth();
 

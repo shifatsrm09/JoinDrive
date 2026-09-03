@@ -35,8 +35,7 @@ router.get("/info", getInfo);
 router.get("/storage", getStorage);
 router.get("/files", getFiles);
 
-// Cross-account views: Recent, Favorites, Trash, and search. These read
-// from every linked account at once instead of a single Drive.
+
 router.get("/aggregate", getAggregate);
 router.get("/search", search);
 

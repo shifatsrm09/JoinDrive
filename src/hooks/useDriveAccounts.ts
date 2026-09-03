@@ -7,12 +7,6 @@ function toMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
 }
 
-/**
- * Loads every Google account linked to the signed in JoinDrive user.
- *
- * `refreshKey` lets the caller force a refetch, which the dashboard uses
- * after returning from the "Add Google Drive" consent screen.
- */
 export default function useDriveAccounts(refreshKey?: string | null) {
   const [accounts, setAccounts] = useState<DriveAccount[]>([]);
   const [loading, setLoading] = useState(true);

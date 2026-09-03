@@ -54,8 +54,7 @@ function finishOAuth(res, path, params, isPopup) {
     destination.searchParams.set(key, value);
   });
 
-  // The callback runs in the small OAuth popup. Replacing the opener's
-  // location keeps Google out of the main tab's back/forward history.
+
   const target = JSON.stringify(destination.toString()).replace(
     /</g,
     "\\u003c"
@@ -91,8 +90,7 @@ function applyTokens(account, tokens) {
     account.accessToken = tokens.access_token;
   }
 
-  // Google only returns a refresh token on the first consent,
-  // so never overwrite a stored one with undefined.
+
   if (tokens.refresh_token) {
     account.refreshToken = tokens.refresh_token;
   }
@@ -104,16 +102,9 @@ function applyTokens(account, tokens) {
   account.lastSynced = new Date();
 }
 
-/* ------------------------------------------------------------------ */
-/* Login: creates or signs into a JoinDrive User                        */
-/* ------------------------------------------------------------------ */
 
 export async function googleLogin(req, res) {
-  // Same CSRF protection as the account-linking flow below: without
-  // this, an attacker could start their own OAuth flow, capture the
-  // resulting `code`, and trick a victim into visiting the callback
-  // URL with it — logging the victim into the attacker's JoinDrive
-  // account. A nonce that only this browser has stops that.
+
   const nonce = crypto.randomBytes(16).toString("hex");
 
   const state = jwt.sign({
@@ -187,17 +178,13 @@ export async function googleCallback(req, res) {
 
     if (account) {
       if (!account.isPrimary) {
-        // Accounts created before isPrimary existed have no flag yet.
-        // If this User has no primary at all, this is the original
-        // login account, so adopt it as primary.
+
         const existingPrimary = await GoogleAccount.findOne({
           userId: account.userId,
           isPrimary: true,
         });
 
         if (existingPrimary) {
-          // This Google account was added as an extra Drive.
-          // JoinDrive is only entered through the primary account.
           return finishOAuth(res, "/", {
             error: "secondary_account",
             email: profile.email,
@@ -244,20 +231,6 @@ export async function googleCallback(req, res) {
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Connect: links another Google account to the SAME JoinDrive User     */
-/* ------------------------------------------------------------------ */
-
-/**
- * Runs behind `protect`, so req.user is the already authenticated
- * JoinDrive User.
- *
- * The User id travels to Google inside a signed `state` value, and a
- * matching nonce is stored in a short lived cookie. The callback trusts
- * the state only when both agree, which prevents another site from
- * driving the link flow and guarantees the new Drive is attached to the
- * account that actually started it.
- */
 export async function googleConnect(req, res) {
   const nonce = crypto.randomBytes(16).toString("hex");
 
@@ -347,27 +320,20 @@ export async function googleConnectCallback(req, res) {
     if (existing) {
       if (existing.userId.toString() !== user._id.toString()) {
         if (existing.isPrimary) {
-          // It's the primary (sign-in) account for a different
-          // JoinDrive user entirely. Linking it here would leave that
-          // other JoinDrive account's owner locked out of ever using
-          // it to sign in again, so this can only be resolved by
-          // deleting that JoinDrive account first, freeing it up.
+
           return finishOAuth(res, "/explorer", {
             error: "linked_as_primary_elsewhere",
             email: profile.email,
           }, decoded.popup === true);
         }
 
-        // Already linked as a secondary Drive on a different JoinDrive
-        // account. Must be disconnected there before it can move here.
+
         return finishOAuth(res, "/explorer", {
           error: "already_linked",
           email: profile.email,
         }, decoded.popup === true);
       }
 
-      // Same user reconnecting an account they already have:
-      // refresh its tokens instead of creating a duplicate card.
       existing.name = profile.name;
       existing.email = profile.email;
       existing.picture = profile.picture;
@@ -394,7 +360,7 @@ export async function googleConnectCallback(req, res) {
       isPrimary: false,
     });
 
-    // The JoinDrive session is untouched: no new User, no new JWT.
+
     return finishOAuth(res, "/explorer", {
       connected: "success",
       email: profile.email,
@@ -408,9 +374,7 @@ export async function googleConnectCallback(req, res) {
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Session                                                              */
-/* ------------------------------------------------------------------ */
+
 
 export async function getMe(req, res) {
   try {
@@ -450,14 +414,6 @@ export async function logout(req, res) {
   });
 }
 
-/**
- * Permanently deletes the JoinDrive account: the User document and
- * every GoogleAccount linked to it. This is what "frees" those Google
- * accounts back up, so any of them (including the former primary) can
- * be used to sign up fresh or be linked to a different JoinDrive user
- * afterwards. Google Drive itself, and the files in it, are untouched
- * — this only deletes JoinDrive's own records.
- */
 export async function deleteAccount(req, res) {
   try {
     await GoogleAccount.deleteMany({ userId: req.user._id });

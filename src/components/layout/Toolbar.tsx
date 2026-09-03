@@ -119,7 +119,6 @@ export default function Toolbar({
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-zinc-800 bg-[#202020] px-6">
-      {/* Left */}
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleSidebar}
@@ -154,7 +153,6 @@ export default function Toolbar({
         </button>
       </div>
 
-      {/* Center */}
       <div className="hidden w-full max-w-xl px-10 md:flex">
         <div className="flex w-full items-center gap-3 rounded-xl bg-[#2B2B2B] px-4 py-2 focus-within:ring-1 focus-within:ring-[#0E639C]">
           <Search size={18} className="shrink-0 text-zinc-400" />
@@ -179,7 +177,6 @@ export default function Toolbar({
         </div>
       </div>
 
-      {/* Right */}
       <div className="flex items-center gap-3">
         <button
           ref={profileButtonRef}

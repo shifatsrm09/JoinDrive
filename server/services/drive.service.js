@@ -8,10 +8,7 @@ import { getAuthenticatedClient } from "./google.service.js";
 const FILE_FIELDS =
   "id,name,mimeType,size,modifiedTime,iconLink,thumbnailLink,webViewLink,parents,shared,owners(displayName,emailAddress,me),capabilities(canEdit,canRename,canDelete,canCopy,canShare,canDownload)";
 
-/**
- * Google Docs formats have no bytes to download, they must be exported.
- * Anything not listed here is downloaded as-is.
- */
+
 const EXPORT_FORMATS = {
   "application/vnd.google-apps.document": {
     mimeType:
@@ -36,23 +33,12 @@ const EXPORT_FORMATS = {
 
 export const FOLDER_MIME = "application/vnd.google-apps.folder";
 
-/**
- * Single quotes terminate a Drive query string, so any quote inside a
- * caller supplied id has to be escaped before interpolation.
- */
+
 function escapeQueryValue(value) {
   return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
-/**
- * Resolve which GoogleAccount a request should act on.
- *
- * Every lookup is scoped by userId, so one JoinDrive User can never
- * read or modify another User's Drive by guessing an accountId.
- *
- * When no accountId is supplied the primary (first connected) account
- * is used, which keeps the original single-account routes working.
- */
+
 async function resolveAccount(userId, accountId) {
   if (accountId) {
     if (!mongoose.Types.ObjectId.isValid(accountId)) {
@@ -92,7 +78,6 @@ async function getDriveClient(account) {
   });
 }
 
-/** Every mutation resolves the account first, so ownership is always checked. */
 async function driveFor(userId, accountId) {
   const account = await resolveAccount(userId, accountId);
 
@@ -112,17 +97,6 @@ function serializeAccount(account, storage, connected) {
   };
 }
 
-/* ------------------------------------------------------------------ */
-/* Accounts                                                            */
-/* ------------------------------------------------------------------ */
-
-/**
- * Every Google account linked to this JoinDrive User.
- *
- * Storage is fetched per account in parallel. A single broken account
- * (revoked access, expired refresh token) is reported as disconnected
- * instead of failing the whole dashboard.
- */
 export async function getAccounts(userId) {
   const accounts = await GoogleAccount.find({ userId }).sort({
     isPrimary: -1,
@@ -179,10 +153,6 @@ export async function getDriveInfo(userId, accountId) {
   return serializeAccount(account, data.storageQuota, true);
 }
 
-/* ------------------------------------------------------------------ */
-/* Reading                                                             */
-/* ------------------------------------------------------------------ */
-
 export async function listFiles(userId, accountId, folderId = "root") {
   const drive = await driveFor(userId, accountId);
 
@@ -207,16 +177,6 @@ export async function getFile(userId, accountId, fileId) {
   return data;
 }
 
-/**
- * Unlinks a Google account from the JoinDrive user.
- *
- * This only deletes JoinDrive's own record; it does not revoke the
- * Google OAuth grant, so the user can always reconnect later. Any
- * account can be removed, including the primary one: on the next
- * Google sign in, googleCallback already promotes another linked
- * account to primary automatically if none remains, and creates a
- * fresh User if none are left at all.
- */
 export async function disconnectAccount(userId, accountId) {
   if (!mongoose.Types.ObjectId.isValid(accountId)) {
     throw new Error("Invalid account id");
@@ -252,15 +212,7 @@ const AGGREGATE_QUERIES = {
   },
 };
 
-/**
- * Runs the same Drive query across every linked account and merges the
- * results into one list, newest first. Used for the Recent, Favorites,
- * and Trash sidebar views, which are conceptually "all my drives" and
- * not scoped to a single account.
- *
- * A single account failing (revoked access, needs reconnect) does not
- * take down the whole view, the same way the dashboard degrades.
- */
+
 async function listAcrossAccounts(userId, driveListParams) {
   const accounts = await GoogleAccount.find({ userId }).sort({
     isPrimary: -1,
@@ -309,7 +261,6 @@ export async function listAggregated(userId, view) {
   });
 }
 
-/** Searches every linked account's Drive by filename. */
 export async function searchFiles(userId, term) {
   const trimmed = String(term || "").trim();
 
@@ -324,7 +275,6 @@ export async function searchFiles(userId, term) {
   });
 }
 
-/** Restores a file out of the Drive trash. */
 export async function restoreFile(userId, accountId, fileId) {
   const drive = await driveFor(userId, accountId);
 
@@ -337,9 +287,6 @@ export async function restoreFile(userId, accountId, fileId) {
   return data;
 }
 
-/* ------------------------------------------------------------------ */
-/* Mutations                                                           */
-/* ------------------------------------------------------------------ */
 
 export async function renameFile(userId, accountId, fileId, name) {
   const trimmed = String(name || "").trim();
@@ -359,7 +306,6 @@ export async function renameFile(userId, accountId, fileId, name) {
   return data;
 }
 
-/** Creates a new, empty folder inside a parent folder. */
 export async function createFolder(
   userId,
   accountId,
@@ -386,10 +332,7 @@ export async function createFolder(
   return data;
 }
 
-/**
- * Delete moves the file to the Drive trash instead of destroying it.
- * The user can still restore it from Google Drive.
- */
+
 export async function trashFile(userId, accountId, fileId) {
   const drive = await driveFor(userId, accountId);
 
@@ -457,14 +400,7 @@ export async function moveFile(
   return data;
 }
 
-/**
- * Share a file.
- *
- * `type: "anyone"` creates a link that anyone can open, which makes the
- * file publicly reachable. `type: "user"` grants one email address.
- * Notification emails are disabled so nothing is sent on the user's
- * behalf without them asking.
- */
+
 export async function shareFile(userId, accountId, fileId, options = {}) {
   const { type = "anyone", role = "reader", email } = options;
 
@@ -502,10 +438,7 @@ export async function shareFile(userId, accountId, fileId, options = {}) {
   return data;
 }
 
-/**
- * Returns a readable stream plus the headers the browser needs.
- * Google Docs formats are exported, everything else downloads as-is.
- */
+
 export async function downloadFile(userId, accountId, fileId) {
   const drive = await driveFor(userId, accountId);
 
@@ -559,12 +492,7 @@ export async function downloadFile(userId, accountId, fileId) {
   };
 }
 
-/**
- * Uploads a new file into a folder from raw bytes (the client sends the
- * file base64 encoded in the request body). Google Drive treats the
- * upload as a normal multipart create, same as if it came from the web
- * UI, so it shows up instantly for anyone the folder is shared with.
- */
+
 export async function uploadFile(
   userId,
   accountId,

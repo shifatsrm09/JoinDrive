@@ -1,23 +1,18 @@
 :root {
-  /* Backgrounds */
   --bg-app: #1b1b1b;
   --bg-sidebar: #1f1f1f;
   --bg-toolbar: #202020;
   --bg-card: #252525;
   --bg-hover: #303030;
 
-  /* Borders */
   --border: #3a3a3a;
 
-  /* Primary */
   --primary: #0e639c;
   --primary-hover: #1177bb;
 
-  /* Text */
   --text-primary: #ffffff;
   --text-secondary: #a1a1aa;
 
-  /* Status */
   --success: #22c55e;
   --danger: #ef4444;
 }

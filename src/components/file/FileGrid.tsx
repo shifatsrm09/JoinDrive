@@ -16,8 +16,6 @@ export default function FileGrid({
   onOpenDrive,
   refreshKey,
 }: FileGridProps) {
-  // refreshKey changes when a Drive was just linked, which refetches
-  // the list so the new card appears immediately.
   const { accounts, loading, error, reload } = useDriveAccounts(refreshKey);
   const { refreshUser } = useAuth();
 
@@ -25,8 +23,6 @@ export default function FileGrid({
     openOAuthPopup(GOOGLE_CONNECT_URL);
   }
 
-  // A disconnected Drive needs to disappear from both this grid and
-  // the sidebar/toolbar, which read the account list from AuthContext.
   function handleRemoved() {
     reload();
     refreshUser();

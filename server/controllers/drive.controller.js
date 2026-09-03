@@ -18,15 +18,7 @@ import {
   restoreFile,
 } from "../services/drive.service.js";
 
-/**
- * accountId is optional on the read routes.
- *
- * /api/drive/files             -> primary account (legacy behaviour)
- * /api/drive/:accountId/files  -> that specific account
- *
- * Mutations always require an explicit accountId so a write can never
- * land on the wrong Drive.
- */
+
 function accountIdFrom(req) {
   return req.params.accountId || null;
 }
@@ -79,9 +71,6 @@ function fail(res, error) {
   });
 }
 
-/* ------------------------------------------------------------------ */
-/* Reads                                                               */
-/* ------------------------------------------------------------------ */
 
 export async function listAccounts(req, res) {
   try {
@@ -96,7 +85,7 @@ export async function listAccounts(req, res) {
   }
 }
 
-/** Unlinks a Google account. Only the JoinDrive record is removed. */
+
 export async function removeAccount(req, res) {
   try {
     const result = await disconnectAccount(
@@ -181,10 +170,7 @@ export async function getFileDetails(req, res) {
   }
 }
 
-/**
- * Recent / Favorites / Trash. These read across every linked account
- * at once, unlike the rest of the read routes which are per account.
- */
+
 export async function getAggregate(req, res) {
   try {
     const view = req.query.view;
@@ -201,7 +187,7 @@ export async function getAggregate(req, res) {
   }
 }
 
-/** Filename search across every linked account. */
+
 export async function search(req, res) {
   try {
     const files = await searchFiles(req.user._id, req.query.q);
@@ -216,9 +202,7 @@ export async function search(req, res) {
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Mutations                                                           */
-/* ------------------------------------------------------------------ */
+
 
 export async function rename(req, res) {
   try {
@@ -238,7 +222,7 @@ export async function rename(req, res) {
   }
 }
 
-/** Creates a new, empty folder inside a parent folder. */
+
 export async function createFolder(req, res) {
   try {
     const file = await createFolderInDrive(
@@ -365,7 +349,7 @@ export async function download(req, res) {
       res.setHeader("Content-Length", size);
     }
 
-    // encodeURIComponent keeps non-ASCII names intact in the header.
+
     res.setHeader(
       "Content-Disposition",
       `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
@@ -382,11 +366,7 @@ export async function download(req, res) {
   }
 }
 
-/**
- * The client base64 encodes the file into the JSON body (see
- * express.json's raised limit in app.js) rather than a multipart
- * upload, so no extra middleware is needed on the server.
- */
+
 export async function upload(req, res) {
   try {
     const { name, mimeType, data, folderId } = req.body || {};

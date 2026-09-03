@@ -63,12 +63,8 @@ const googleAccountSchema = new mongoose.Schema(
   }
 );
 
-// Every list of "my connected drives" queries by userId alone.
 googleAccountSchema.index({ userId: 1 });
 
-// Guarantees at the database level that a User can never end up with
-// two primary accounts, even if two requests race past the
-// application-level check at the same time.
 googleAccountSchema.index(
   { userId: 1, isPrimary: 1 },
   {

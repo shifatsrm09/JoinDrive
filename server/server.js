@@ -10,10 +10,7 @@ async function startServer() {
   await connectDB();
 
   app.listen(PORT, () => {
-    console.log("======================================");
-    console.log("🚀 JoinDrive Backend Started");
-    console.log(`🌐 http://localhost:${PORT}`);
-    console.log("======================================");
+    console.log("✅ JoinDrive Server Running on port", PORT);
   });
 }
 

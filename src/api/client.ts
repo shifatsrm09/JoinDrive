@@ -14,7 +14,6 @@ export async function apiFetch<T>(
   });
 
   if (!response.ok) {
-    // The API reports failures as { success, message }.
     const raw = await response.text();
 
     let message = raw;
@@ -22,7 +21,6 @@ export async function apiFetch<T>(
     try {
       message = JSON.parse(raw).message || raw;
     } catch {
-      // Not JSON, keep the raw body.
     }
 
     throw new Error(message || "Request failed");

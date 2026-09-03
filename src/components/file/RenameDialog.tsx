@@ -20,8 +20,6 @@ export default function RenameDialog({
 }: RenameDialogProps) {
   const [name, setName] = useState(file.name);
 
-  // Preselect the base name only, the way Windows Explorer does, so the
-  // extension is not overwritten by accident.
   const focusInput = useCallback(
     (input: HTMLInputElement | null) => {
       if (!input) {

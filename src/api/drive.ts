@@ -24,7 +24,6 @@ export interface DriveFileResponse {
   file: DriveFile;
 }
 
-/** A file returned by a cross-account view, tagged with its source Drive. */
 export interface AggregateFile extends DriveFile {
   accountId: string;
   accountEmail: string;
@@ -54,12 +53,10 @@ export interface ShareResponse {
   };
 }
 
-/** Every Google account linked to the signed in JoinDrive user. */
 export function getAccounts() {
   return apiFetch<DriveAccountsResponse>("/drive/accounts");
 }
 
-/** Unlinks a Google account. Only removes JoinDrive's own record. */
 export function disconnectAccount(accountId: string) {
   return apiFetch<{ success: boolean; message: string }>(
     `/drive/accounts/${encodeURIComponent(accountId)}`,
@@ -69,10 +66,6 @@ export function disconnectAccount(accountId: string) {
   );
 }
 
-/**
- * Read routes are account scoped when an accountId is given and fall
- * back to the primary account when it is not.
- */
 function scoped(accountId: string | undefined, path: string) {
   return accountId ? `/drive/${accountId}${path}` : `/drive${path}`;
 }
@@ -89,23 +82,17 @@ export function getFiles(folderId = "root", accountId?: string) {
   );
 }
 
-/** Recent, Favorites, or Trash, merged across every linked account. */
 export function getAggregate(view: AggregateView) {
   return apiFetch<AggregateResponse>(
     `/drive/aggregate?view=${encodeURIComponent(view)}`
   );
 }
 
-/** Filename search across every linked account. */
 export function searchFiles(query: string) {
   return apiFetch<SearchResponse>(
     `/drive/search?q=${encodeURIComponent(query)}`
   );
 }
-
-/* ------------------------------------------------------------------ */
-/* File actions. These always target one explicit account.             */
-/* ------------------------------------------------------------------ */
 
 function filePath(accountId: string, fileId: string) {
   return `/drive/${accountId}/files/${encodeURIComponent(fileId)}`;
@@ -125,7 +112,6 @@ export function renameFile(
   );
 }
 
-/** Creates a new, empty folder inside a parent folder. */
 export function createFolder(
   accountId: string,
   parentId: string,
@@ -137,7 +123,6 @@ export function createFolder(
   });
 }
 
-/** Moves the file to the Drive trash. It is recoverable from Drive. */
 export function deleteFile(accountId: string, fileId: string) {
   return apiFetch<{ success: boolean; message: string }>(
     filePath(accountId, fileId),
@@ -147,7 +132,6 @@ export function deleteFile(accountId: string, fileId: string) {
   );
 }
 
-/** Restores a file out of the Drive trash. */
 export function restoreFile(accountId: string, fileId: string) {
   return apiFetch<DriveFileResponse>(
     `${filePath(accountId, fileId)}/restore`,
@@ -199,10 +183,6 @@ export function shareFile(
   );
 }
 
-/**
- * Downloads run as a normal top level navigation rather than fetch, so
- * the browser handles the save dialog and the session cookie is sent.
- */
 export function downloadUrl(accountId: string, fileId: string) {
   return `${API_BASE_URL}${filePath(accountId, fileId)}/download`;
 }
@@ -215,7 +195,6 @@ function readAsBase64(file: File): Promise<string> {
 
     reader.onload = () => {
       const result = reader.result as string;
-      // Strips the "data:<mime>;base64," prefix FileReader adds.
       resolve(result.slice(result.indexOf(",") + 1));
     };
 
@@ -223,7 +202,6 @@ function readAsBase64(file: File): Promise<string> {
   });
 }
 
-/** Uploads a local file into a folder in a specific account's Drive. */
 export async function uploadFile(
   accountId: string,
   folderId: string,

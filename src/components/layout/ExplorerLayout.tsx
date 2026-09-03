@@ -43,10 +43,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   connect_failed: "Could not connect that Google Drive. Please try again.",
 };
 
-// Browsers report the mouse side buttons ("back"/"forward" thumb
-// buttons) as button 3 and 4 on mouse events. There is no dedicated
-// DOM event for them, so a raw mouseup listener is the standard way
-// to detect the gesture.
 const MOUSE_BACK_BUTTON = 3;
 const MOUSE_FORWARD_BUTTON = 4;
 
@@ -62,12 +58,8 @@ export default function ExplorerLayout() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showUpload, setShowUpload] = useState(false);
 
-  // Bumped after every completed upload so the destination folder's
-  // ExplorerGrid remounts and refetches, even when it was already open.
   const [uploadNonce, setUploadNonce] = useState(0);
 
-  // The clipboard lives here so a copied file survives folder
-  // navigation and can be pasted somewhere else in the drive.
   const [clipboard, setClipboard] = useState<Clipboard | null>(null);
 
   const current = history[currentIndex];
@@ -83,8 +75,6 @@ export default function ExplorerLayout() {
     setCurrentIndex((prev) => Math.min(history.length - 1, prev + 1));
   }
 
-  // Mouse side buttons act like a browser's back/forward, scoped to
-  // in-app folder navigation instead of leaving the page.
   useEffect(() => {
     function onMouseUp(event: MouseEvent) {
       if (event.button === MOUSE_BACK_BUTTON) {
@@ -96,8 +86,6 @@ export default function ExplorerLayout() {
       }
     }
 
-    // Some browsers fire the navigation on mousedown; preventDefault
-    // there too so the tab itself never navigates away.
     function onMouseDown(event: MouseEvent) {
       if (
         event.button === MOUSE_BACK_BUTTON ||
@@ -114,11 +102,8 @@ export default function ExplorerLayout() {
       window.removeEventListener("mouseup", onMouseUp);
       window.removeEventListener("mousedown", onMouseDown);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.length]);
 
-  // The result of the "Add Google Drive" redirect is read straight from
-  // the URL. Dismissing clears the query string.
   const connected = searchParams.get("connected");
   const connectError = searchParams.get("error");
   const connectedEmail = searchParams.get("email");
@@ -160,7 +145,6 @@ export default function ExplorerLayout() {
       return;
     }
 
-    // A folder always belongs to the drive that is currently open.
     pushEntry({
       type: "folder",
       accountId: current.accountId,

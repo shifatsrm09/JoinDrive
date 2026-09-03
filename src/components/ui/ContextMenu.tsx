@@ -30,8 +30,6 @@ export default function ContextMenu({
 }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
 
-  // Keep the menu inside the viewport. The position is written straight
-  // to the node so there is no second render and no flicker.
   useLayoutEffect(() => {
     const el = ref.current;
 
@@ -69,7 +67,6 @@ export default function ContextMenu({
       }
     }
 
-    // `true` closes the menu before the new right click opens another.
     document.addEventListener("mousedown", onPointerDown, true);
     document.addEventListener("keydown", onKeyDown);
     window.addEventListener("resize", onClose);

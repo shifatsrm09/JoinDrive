@@ -150,11 +150,6 @@ function formatSize(size?: string) {
   }`;
 }
 
-/**
- * Just the local part of the owner's email (the bit before the "@"),
- * the way Google Drive's own list view shows it. Falls back to the
- * display name if there's no email for some reason.
- */
 function ownerLabel(file: DriveFile) {
   const owner = file.owners?.[0];
 
@@ -208,8 +203,6 @@ export default function ExplorerGrid({
     window.setTimeout(() => setToast(""), 4000);
   }, []);
 
-  // Refetch whenever the folder, the account, or a mutation changes,
-  // so switching drives never shows the previous account's files.
   useEffect(() => {
     let cancelled = false;
 
@@ -246,7 +239,6 @@ export default function ExplorerGrid({
     const factor = sortDirection === "asc" ? 1 : -1;
 
     return [...files].sort((a, b) => {
-      // Folders always lead, the way a file explorer behaves.
       const folderDelta = Number(isFolder(b)) - Number(isFolder(a));
 
       if (folderDelta !== 0) {
@@ -280,10 +272,6 @@ export default function ExplorerGrid({
   const canPaste =
     !!clipboard && clipboard.accountId === accountId && !busy;
 
-  /* ---------------------------------------------------------------- */
-  /* Actions                                                          */
-  /* ---------------------------------------------------------------- */
-
   const openItem = useCallback(
     (file: DriveFile) => {
       if (isFolder(file)) {
@@ -305,8 +293,6 @@ export default function ExplorerGrid({
         return;
       }
 
-      // A normal navigation lets the browser show its own save dialog
-      // and sends the session cookie with the request.
       const anchor = document.createElement("a");
       anchor.href = downloadUrl(accountId, file.id);
       anchor.rel = "noopener";
@@ -418,15 +404,10 @@ export default function ExplorerGrid({
     }
   }
 
-  /* ---------------------------------------------------------------- */
-  /* Keyboard shortcuts                                               */
-  /* ---------------------------------------------------------------- */
-
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement;
 
-      // Never hijack typing inside a dialog.
       if (
         dialog ||
         target.tagName === "INPUT" ||
@@ -497,10 +478,6 @@ export default function ExplorerGrid({
     notify,
     onClipboardChange,
   ]);
-
-  /* ---------------------------------------------------------------- */
-  /* Context menus                                                    */
-  /* ---------------------------------------------------------------- */
 
   function buildFileMenu(file: DriveFile): MenuItem[] {
     const caps = file.capabilities || {};
@@ -626,10 +603,6 @@ export default function ExplorerGrid({
     ];
   }
 
-  /* ---------------------------------------------------------------- */
-  /* Render                                                           */
-  /* ---------------------------------------------------------------- */
-
   if (loading) {
     return (
       <main className="flex flex-1 items-center justify-center">
@@ -661,14 +634,12 @@ export default function ExplorerGrid({
         setMenu({ x: event.clientX, y: event.clientY, file: null });
       }}
       onMouseDown={(event) => {
-        // Clicking empty space clears the selection.
         if (event.target === event.currentTarget) {
           setSelectedId(null);
         }
       }}
       className="relative flex-1 overflow-auto bg-[#1B1B1B] p-6"
     >
-      {/* Action bar */}
       <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
         <span className="text-zinc-500">Sort by</span>
 
@@ -878,8 +849,6 @@ export default function ExplorerGrid({
             return (
               <div
                 key={file.id}
-                // Suppressing the second mousedown stops the browser
-                // from selecting the label text on a double click.
                 onMouseDown={(event) => {
                   if (event.detail > 1) {
                     event.preventDefault();
