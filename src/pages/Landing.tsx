@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { GOOGLE_LOGIN_URL } from "../api/config";
 import driveIcon from "../assets/icon/drive-icon.png";
+import { openOAuthPopup } from "../utils/openOAuthPopup";
 
 const ERROR_MESSAGES: Record<string, string> = {
   secondary_account:
@@ -30,7 +31,7 @@ export default function Landing() {
   }, [loading, user, errorKey, navigate]);
 
   function handleLogin() {
-    window.location.href = GOOGLE_LOGIN_URL;
+    openOAuthPopup(GOOGLE_LOGIN_URL);
   }
 
   if (loading) {

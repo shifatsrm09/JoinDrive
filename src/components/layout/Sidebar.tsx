@@ -12,6 +12,7 @@ import type { LucideIcon } from "lucide-react";
 import { GOOGLE_CONNECT_URL } from "../../api/config";
 import { useAuth } from "../../context/AuthContext";
 import driveIcon from "../../assets/icon/drive-icon.png";
+import { openOAuthPopup } from "../../utils/openOAuthPopup";
 
 export type SidebarView =
   | "dashboard"
@@ -67,8 +68,7 @@ export default function Sidebar({
   ];
 
   function handleAddDrive() {
-    // Full page redirect: the backend starts the Google consent flow.
-    window.location.href = GOOGLE_CONNECT_URL;
+    openOAuthPopup(GOOGLE_CONNECT_URL);
   }
 
   return (

@@ -5,6 +5,7 @@ import useDriveAccounts from "../../hooks/useDriveAccounts";
 import { useAuth } from "../../context/AuthContext";
 import { GOOGLE_CONNECT_URL } from "../../api/config";
 import type { DriveAccount } from "../../types/drive";
+import { openOAuthPopup } from "../../utils/openOAuthPopup";
 
 type FileGridProps = {
   onOpenDrive: (account: DriveAccount) => void;
@@ -21,7 +22,7 @@ export default function FileGrid({
   const { refreshUser } = useAuth();
 
   function handleAddDrive() {
-    window.location.href = GOOGLE_CONNECT_URL;
+    openOAuthPopup(GOOGLE_CONNECT_URL);
   }
 
   // A disconnected Drive needs to disappear from both this grid and

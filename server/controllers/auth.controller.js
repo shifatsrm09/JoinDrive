@@ -43,6 +43,38 @@ function redirectToClient(res, path, params) {
   return res.redirect(url.toString());
 }
 
+function finishOAuth(res, path, params, isPopup) {
+  if (!isPopup) {
+    return redirectToClient(res, path, params);
+  }
+
+  const destination = new URL(path, CLIENT_URL);
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    destination.searchParams.set(key, value);
+  });
+
+  // The callback runs in the small OAuth popup. Replacing the opener's
+  // location keeps Google out of the main tab's back/forward history.
+  const target = JSON.stringify(destination.toString()).replace(
+    /</g,
+    "\\u003c"
+  );
+
+  return res.type("html").send(`<!doctype html>
+<html><head><title>JoinDrive</title></head><body>
+<script>
+  if (window.opener) {
+    window.opener.location.replace(${target});
+    window.close();
+  } else {
+    window.location.replace(${target});
+  }
+</script>
+<p>Finishing sign-in…</p>
+</body></html>`);
+}
+
 async function fetchGoogleProfile(client) {
   const oauth2 = google.oauth2({
     version: "v2",
@@ -84,7 +116,10 @@ export async function googleLogin(req, res) {
   // account. A nonce that only this browser has stops that.
   const nonce = crypto.randomBytes(16).toString("hex");
 
-  const state = jwt.sign({ nonce }, process.env.JWT_SECRET, {
+  const state = jwt.sign({
+    nonce,
+    popup: req.query.popup === "1",
+  }, process.env.JWT_SECRET, {
     expiresIn: "10m",
   });
 
@@ -103,14 +138,10 @@ export async function googleLogin(req, res) {
 }
 
 export async function googleCallback(req, res) {
+  let decodedState;
+
   try {
     const { code, state } = req.query;
-
-    if (!code) {
-      return redirectToClient(res, "/", {
-        error: "missing_code",
-      });
-    }
 
     const nonce = req.cookies[LOGIN_STATE_COOKIE];
 
@@ -124,11 +155,17 @@ export async function googleCallback(req, res) {
 
     if (state && nonce) {
       try {
-        const decodedState = jwt.verify(state, process.env.JWT_SECRET);
+        decodedState = jwt.verify(state, process.env.JWT_SECRET);
         stateOk = decodedState.nonce === nonce;
       } catch {
         stateOk = false;
       }
+    }
+
+    if (!code) {
+      return finishOAuth(res, "/", {
+        error: "missing_code",
+      }, decodedState?.popup === true);
     }
 
     if (!stateOk) {
@@ -161,10 +198,10 @@ export async function googleCallback(req, res) {
         if (existingPrimary) {
           // This Google account was added as an extra Drive.
           // JoinDrive is only entered through the primary account.
-          return redirectToClient(res, "/", {
+          return finishOAuth(res, "/", {
             error: "secondary_account",
             email: profile.email,
-          });
+          }, decodedState.popup === true);
         }
 
         account.isPrimary = true;
@@ -197,13 +234,13 @@ export async function googleCallback(req, res) {
 
     res.cookie("token", token, cookieOptions(30 * 24 * 60 * 60 * 1000));
 
-    return redirectToClient(res, "/explorer");
+    return finishOAuth(res, "/explorer", null, decodedState.popup === true);
   } catch (error) {
     console.error(error);
 
-    return redirectToClient(res, "/", {
+    return finishOAuth(res, "/", {
       error: "login_failed",
-    });
+    }, decodedState?.popup === true);
   }
 }
 
@@ -228,6 +265,7 @@ export async function googleConnect(req, res) {
     {
       userId: req.user._id.toString(),
       nonce,
+      popup: req.query.popup === "1",
     },
     process.env.JWT_SECRET,
     { expiresIn: "10m" }
@@ -248,14 +286,10 @@ export async function googleConnect(req, res) {
 }
 
 export async function googleConnectCallback(req, res) {
+  let decoded;
+
   try {
     const { code, state } = req.query;
-
-    if (!code || !state) {
-      return redirectToClient(res, "/explorer", {
-        error: "connect_cancelled",
-      });
-    }
 
     const nonce = req.cookies[STATE_COOKIE];
 
@@ -265,7 +299,11 @@ export async function googleConnectCallback(req, res) {
       sameSite: "lax",
     });
 
-    let decoded;
+    if (!state) {
+      return redirectToClient(res, "/explorer", {
+        error: "connect_cancelled",
+      });
+    }
 
     try {
       decoded = jwt.verify(state, process.env.JWT_SECRET);
@@ -276,9 +314,15 @@ export async function googleConnectCallback(req, res) {
     }
 
     if (!nonce || decoded.nonce !== nonce) {
-      return redirectToClient(res, "/explorer", {
+      return finishOAuth(res, "/explorer", {
         error: "invalid_state",
-      });
+      }, decoded.popup === true);
+    }
+
+    if (!code) {
+      return finishOAuth(res, "/explorer", {
+        error: "connect_cancelled",
+      }, decoded.popup === true);
     }
 
     const user = await User.findById(decoded.userId);
@@ -308,18 +352,18 @@ export async function googleConnectCallback(req, res) {
           // other JoinDrive account's owner locked out of ever using
           // it to sign in again, so this can only be resolved by
           // deleting that JoinDrive account first, freeing it up.
-          return redirectToClient(res, "/explorer", {
+          return finishOAuth(res, "/explorer", {
             error: "linked_as_primary_elsewhere",
             email: profile.email,
-          });
+          }, decoded.popup === true);
         }
 
         // Already linked as a secondary Drive on a different JoinDrive
         // account. Must be disconnected there before it can move here.
-        return redirectToClient(res, "/explorer", {
+        return finishOAuth(res, "/explorer", {
           error: "already_linked",
           email: profile.email,
-        });
+        }, decoded.popup === true);
       }
 
       // Same user reconnecting an account they already have:
@@ -332,10 +376,10 @@ export async function googleConnectCallback(req, res) {
 
       await existing.save();
 
-      return redirectToClient(res, "/explorer", {
+      return finishOAuth(res, "/explorer", {
         connected: existing.isPrimary ? "primary_reconnected" : "updated",
         email: profile.email,
-      });
+      }, decoded.popup === true);
     }
 
     await GoogleAccount.create({
@@ -351,16 +395,16 @@ export async function googleConnectCallback(req, res) {
     });
 
     // The JoinDrive session is untouched: no new User, no new JWT.
-    return redirectToClient(res, "/explorer", {
+    return finishOAuth(res, "/explorer", {
       connected: "success",
       email: profile.email,
-    });
+    }, decoded.popup === true);
   } catch (error) {
     console.error(error);
 
-    return redirectToClient(res, "/explorer", {
+    return finishOAuth(res, "/explorer", {
       error: "connect_failed",
-    });
+    }, decoded?.popup === true);
   }
 }
 
