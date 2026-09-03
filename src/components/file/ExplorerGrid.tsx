@@ -14,6 +14,8 @@ import {
   Folder,
   FolderOpen,
   Image,
+  LayoutGrid,
+  List,
   Music,
   Pencil,
   RefreshCw,
@@ -71,31 +73,45 @@ const SORT_LABELS: Record<SortKey, string> = {
   size: "Size",
 };
 
-function getIcon(file: DriveFile) {
+type ViewMode = "grid" | "list";
+
+const VIEW_MODE_KEY = "joindrive:viewMode";
+
+function loadViewMode(): ViewMode {
+  if (typeof window === "undefined") {
+    return "grid";
+  }
+
+  return window.localStorage.getItem(VIEW_MODE_KEY) === "list"
+    ? "list"
+    : "grid";
+}
+
+function getIcon(file: DriveFile, size = 44) {
   const type = file.mimeType;
 
   if (isFolder(file)) {
-    return <Folder size={44} className="text-blue-400" />;
+    return <Folder size={size} className="text-blue-400" />;
   }
 
   if (type.startsWith("image/")) {
-    return <Image size={44} className="text-green-400" />;
+    return <Image size={size} className="text-green-400" />;
   }
 
   if (type.startsWith("video/")) {
-    return <FileVideo size={44} className="text-purple-400" />;
+    return <FileVideo size={size} className="text-purple-400" />;
   }
 
   if (type.startsWith("audio/")) {
-    return <Music size={44} className="text-pink-400" />;
+    return <Music size={size} className="text-pink-400" />;
   }
 
   if (type.includes("spreadsheet") || type.includes("excel")) {
-    return <FileSpreadsheet size={44} className="text-emerald-400" />;
+    return <FileSpreadsheet size={size} className="text-emerald-400" />;
   }
 
   if (type.includes("zip") || type.includes("rar") || type.includes("tar")) {
-    return <FileArchive size={44} className="text-yellow-400" />;
+    return <FileArchive size={size} className="text-yellow-400" />;
   }
 
   if (
@@ -103,10 +119,10 @@ function getIcon(file: DriveFile) {
     type.includes("text") ||
     type.includes("pdf")
   ) {
-    return <FileText size={44} className="text-zinc-300" />;
+    return <FileText size={size} className="text-zinc-300" />;
   }
 
-  return <FileIcon size={44} className="text-zinc-400" />;
+  return <FileIcon size={size} className="text-zinc-400" />;
 }
 
 function formatSize(size?: string) {
@@ -152,6 +168,13 @@ export default function ExplorerGrid({
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDirection, setSortDirection] =
     useState<SortDirection>("asc");
+
+  const [viewMode, setViewMode] = useState<ViewMode>(loadViewMode);
+
+  function changeViewMode(mode: ViewMode) {
+    setViewMode(mode);
+    window.localStorage.setItem(VIEW_MODE_KEY, mode);
+  }
 
   const reload = useCallback(() => setVersion((v) => v + 1), []);
 
@@ -652,6 +675,32 @@ export default function ExplorerGrid({
           >
             <RefreshCw size={18} />
           </button>
+
+          <div className="flex items-center gap-0.5 rounded-lg bg-zinc-800 p-0.5">
+            <button
+              onClick={() => changeViewMode("grid")}
+              title="Grid view"
+              className={`rounded-md p-1.5 transition ${
+                viewMode === "grid"
+                  ? "bg-[#0E639C] text-white"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              <LayoutGrid size={16} />
+            </button>
+
+            <button
+              onClick={() => changeViewMode("list")}
+              title="List view"
+              className={`rounded-md p-1.5 transition ${
+                viewMode === "list"
+                  ? "bg-[#0E639C] text-white"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              <List size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -670,6 +719,95 @@ export default function ExplorerGrid({
       {sorted.length === 0 ? (
         <div className="flex flex-1 items-center justify-center py-20">
           <p className="text-zinc-500">This folder is empty</p>
+        </div>
+      ) : viewMode === "list" ? (
+        <div className="overflow-hidden rounded-xl border border-zinc-800">
+          <div className="flex items-center gap-4 border-b border-zinc-800 bg-[#202020] px-4 py-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <span className="w-9 shrink-0" />
+
+            <button
+              onClick={() => setSortKey("name")}
+              className={`flex-1 text-left transition hover:text-zinc-200 ${
+                sortKey === "name" ? "text-zinc-200" : ""
+              }`}
+            >
+              Name
+            </button>
+
+            <button
+              onClick={() => setSortKey("modified")}
+              className={`hidden w-40 shrink-0 text-left transition hover:text-zinc-200 sm:block ${
+                sortKey === "modified" ? "text-zinc-200" : ""
+              }`}
+            >
+              Date modified
+            </button>
+
+            <button
+              onClick={() => setSortKey("size")}
+              className={`w-20 shrink-0 text-right transition hover:text-zinc-200 ${
+                sortKey === "size" ? "text-zinc-200" : ""
+              }`}
+            >
+              Size
+            </button>
+          </div>
+
+          {sorted.map((file) => {
+            const isSelected = file.id === selectedId;
+            const isCut =
+              clipboard?.mode === "cut" &&
+              clipboard.file.id === file.id &&
+              clipboard.accountId === accountId;
+
+            return (
+              <div
+                key={file.id}
+                onMouseDown={(event) => {
+                  if (event.detail > 1) {
+                    event.preventDefault();
+                  }
+                }}
+                onClick={() => setSelectedId(file.id)}
+                onDoubleClick={() => openItem(file)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setSelectedId(file.id);
+                  setMenu({
+                    x: event.clientX,
+                    y: event.clientY,
+                    file,
+                  });
+                }}
+                title={file.name}
+                className={`flex cursor-pointer select-none items-center gap-4 border-b border-zinc-800/60 px-4 py-2 transition-colors last:border-b-0 ${
+                  isSelected
+                    ? "bg-[#0E639C]/15"
+                    : "bg-[#252525] hover:bg-zinc-800/60"
+                } ${isCut ? "opacity-50" : ""}`}
+              >
+                <span className="flex w-9 shrink-0 items-center justify-center">
+                  {getIcon(file, 20)}
+                </span>
+
+                <span className="flex-1 truncate text-sm">
+                  {file.name}
+                </span>
+
+                <span className="hidden w-40 shrink-0 truncate text-sm text-zinc-500 sm:block">
+                  {new Date(file.modifiedTime).toLocaleDateString(
+                    undefined,
+                    { year: "numeric", month: "short", day: "numeric" }
+                  )}
+                </span>
+
+                <span className="w-20 shrink-0 text-right text-sm text-zinc-500">
+                  {isFolder(file) ? "\u2014" : formatSize(file.size)}
+                </span>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
