@@ -6,7 +6,7 @@ import GoogleAccount from "../models/GoogleAccount.js";
 import { getAuthenticatedClient } from "./google.service.js";
 
 const FILE_FIELDS =
-  "id,name,mimeType,size,modifiedTime,iconLink,thumbnailLink,webViewLink,parents,shared,capabilities(canEdit,canRename,canDelete,canCopy,canShare,canDownload)";
+  "id,name,mimeType,size,modifiedTime,iconLink,thumbnailLink,webViewLink,parents,shared,owners(displayName,emailAddress,me),capabilities(canEdit,canRename,canDelete,canCopy,canShare,canDownload)";
 
 /**
  * Google Docs formats have no bytes to download, they must be exported.

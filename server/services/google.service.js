@@ -59,23 +59,14 @@ export async function getAuthenticatedClient(accountId) {
       );
     }
 
-    const { credentials } = await client.refreshAccessToken();
-
-    account.accessToken = credentials.access_token;
-
-    if (credentials.refresh_token) {
-      account.refreshToken = credentials.refresh_token;
-    }
-
-    if (credentials.expiry_date) {
-      account.expiryDate = credentials.expiry_date;
-    }
-
-    account.lastSynced = new Date();
-
-    await account.save();
-
-    client.setCredentials(credentials);
+    // refreshAccessToken() already calls setCredentials() on this
+    // client internally and emits "tokens", which the listener above
+    // persists to the database. Saving `account` again here as well
+    // raced against that listener's save() on the very same document,
+    // which is what caused Mongoose's "Can't save() the same doc
+    // multiple times in parallel" error you'd see whenever several
+    // expired accounts refreshed at once (e.g. loading the dashboard).
+    await client.refreshAccessToken();
   }
 
   return client;
