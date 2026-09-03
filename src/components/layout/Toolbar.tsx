@@ -5,14 +5,16 @@ import {
   X,
   CircleUser,
   LogOut,
+  UserX,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { logout } from "../../api/auth";
+import { logout, deleteAccount } from "../../api/auth";
 import { useAuth } from "../../context/AuthContext";
 import ContextMenu from "../ui/ContextMenu";
 import type { MenuItem } from "../ui/ContextMenu";
+import ConfirmDialog from "../file/ConfirmDialog";
 
 type ToolbarProps = {
   canGoBack: boolean;
@@ -42,10 +44,14 @@ export default function Toolbar({
     y: number;
   } | null>(null);
 
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const accounts = user?.accounts ?? [];
+
   const primaryAccount =
-    user?.accounts?.find((account) => account.isPrimary) ??
-    user?.accounts?.[0] ??
-    null;
+    accounts.find((account) => account.isPrimary) ?? accounts[0] ?? null;
 
   async function handleLogout() {
     try {
@@ -53,6 +59,24 @@ export default function Toolbar({
     } finally {
       setUser(null);
       navigate("/", { replace: true });
+    }
+  }
+
+  async function handleDeleteAccount() {
+    try {
+      setDeleteBusy(true);
+      setDeleteError("");
+
+      await deleteAccount();
+
+      setUser(null);
+      navigate("/", { replace: true });
+    } catch (err: unknown) {
+      setDeleteError(
+        err instanceof Error ? err.message : "Could not delete this account"
+      );
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -79,8 +103,17 @@ export default function Toolbar({
       kind: "item",
       label: "Log out",
       icon: LogOut,
-      danger: true,
       onSelect: handleLogout,
+    },
+    {
+      kind: "item",
+      label: "Delete JoinDrive account",
+      icon: UserX,
+      danger: true,
+      onSelect: () => {
+        setDeleteError("");
+        setConfirmingDelete(true);
+      },
     },
   ];
 
@@ -173,6 +206,30 @@ export default function Toolbar({
           y={profileMenu.y}
           items={profileItems}
           onClose={() => setProfileMenu(null)}
+        />
+      )}
+
+      {confirmingDelete && (
+        <ConfirmDialog
+          title="Delete JoinDrive account"
+          message={
+            deleteError ||
+            `This permanently deletes your JoinDrive account and disconnects all ${accounts.length} linked Google Drive${
+              accounts.length === 1 ? "" : "s"
+            } (${accounts
+              .map((account) => account.email)
+              .join(
+                ", "
+              )}). Your files stay untouched in Google Drive, but every one of these accounts becomes free to sign up or connect elsewhere. This cannot be undone.`
+          }
+          confirmLabel="Delete account"
+          danger
+          busy={deleteBusy}
+          onCancel={() => {
+            setConfirmingDelete(false);
+            setDeleteError("");
+          }}
+          onConfirm={handleDeleteAccount}
         />
       )}
     </header>

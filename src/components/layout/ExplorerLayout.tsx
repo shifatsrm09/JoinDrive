@@ -29,11 +29,14 @@ type HistoryEntry =
 const CONNECT_MESSAGES: Record<string, string> = {
   success: "Google Drive connected",
   updated: "Google Drive reconnected",
+  primary_reconnected: "This is already your primary account, its connection was refreshed",
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
   already_linked:
-    "That Google account is already connected to a different JoinDrive user.",
+    "That Google account is already connected to another JoinDrive account. First disconnect it there before connecting it here.",
+  linked_as_primary_elsewhere:
+    "That Google account is the primary account for a different JoinDrive account. Delete that JoinDrive account first to free it up.",
   invalid_state:
     "The connection request expired. Please try adding the Drive again.",
   connect_cancelled: "Adding the Google Drive was cancelled.",

@@ -7,6 +7,7 @@ import {
   googleConnectCallback,
   getMe,
   logout,
+  deleteAccount,
 } from "../controllers/auth.controller.js";
 
 import { protect } from "../middleware/protect.js";
@@ -23,5 +24,9 @@ router.get("/google/connect/callback", googleConnectCallback);
 
 router.get("/me", protect, getMe);
 router.post("/logout", logout);
+
+// Permanently deletes the JoinDrive account and frees every linked
+// Google account (see deleteAccount for what that means).
+router.delete("/me", protect, deleteAccount);
 
 export default router;

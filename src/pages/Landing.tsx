@@ -10,6 +10,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   session_expired: "Your session expired. Please sign in again.",
   login_failed: "Sign in failed. Please try again.",
   missing_code: "Sign in was cancelled.",
+  invalid_state: "The sign in request expired or was invalid. Please try again.",
 };
 
 export default function Landing() {

@@ -22,6 +22,7 @@ const SCOPES = [
 ];
 
 const STATE_COOKIE = "oauth_state";
+const LOGIN_STATE_COOKIE = "login_oauth_state";
 
 function cookieOptions(maxAge) {
   return {
@@ -76,12 +77,26 @@ function applyTokens(account, tokens) {
 /* ------------------------------------------------------------------ */
 
 export async function googleLogin(req, res) {
+  // Same CSRF protection as the account-linking flow below: without
+  // this, an attacker could start their own OAuth flow, capture the
+  // resulting `code`, and trick a victim into visiting the callback
+  // URL with it — logging the victim into the attacker's JoinDrive
+  // account. A nonce that only this browser has stops that.
+  const nonce = crypto.randomBytes(16).toString("hex");
+
+  const state = jwt.sign({ nonce }, process.env.JWT_SECRET, {
+    expiresIn: "10m",
+  });
+
+  res.cookie(LOGIN_STATE_COOKIE, nonce, cookieOptions(10 * 60 * 1000));
+
   const client = createLoginClient();
 
   const url = client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
     scope: SCOPES,
+    state,
   });
 
   res.redirect(url);
@@ -89,11 +104,36 @@ export async function googleLogin(req, res) {
 
 export async function googleCallback(req, res) {
   try {
-    const { code } = req.query;
+    const { code, state } = req.query;
 
     if (!code) {
       return redirectToClient(res, "/", {
         error: "missing_code",
+      });
+    }
+
+    const nonce = req.cookies[LOGIN_STATE_COOKIE];
+
+    res.clearCookie(LOGIN_STATE_COOKIE, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+    });
+
+    let stateOk = false;
+
+    if (state && nonce) {
+      try {
+        const decodedState = jwt.verify(state, process.env.JWT_SECRET);
+        stateOk = decodedState.nonce === nonce;
+      } catch {
+        stateOk = false;
+      }
+    }
+
+    if (!stateOk) {
+      return redirectToClient(res, "/", {
+        error: "invalid_state",
       });
     }
 
@@ -262,7 +302,20 @@ export async function googleConnectCallback(req, res) {
 
     if (existing) {
       if (existing.userId.toString() !== user._id.toString()) {
-        // Already linked to a different JoinDrive User.
+        if (existing.isPrimary) {
+          // It's the primary (sign-in) account for a different
+          // JoinDrive user entirely. Linking it here would leave that
+          // other JoinDrive account's owner locked out of ever using
+          // it to sign in again, so this can only be resolved by
+          // deleting that JoinDrive account first, freeing it up.
+          return redirectToClient(res, "/explorer", {
+            error: "linked_as_primary_elsewhere",
+            email: profile.email,
+          });
+        }
+
+        // Already linked as a secondary Drive on a different JoinDrive
+        // account. Must be disconnected there before it can move here.
         return redirectToClient(res, "/explorer", {
           error: "already_linked",
           email: profile.email,
@@ -280,7 +333,7 @@ export async function googleConnectCallback(req, res) {
       await existing.save();
 
       return redirectToClient(res, "/explorer", {
-        connected: "updated",
+        connected: existing.isPrimary ? "primary_reconnected" : "updated",
         email: profile.email,
       });
     }
@@ -351,4 +404,37 @@ export async function logout(req, res) {
     success: true,
     message: "Logged out successfully",
   });
+}
+
+/**
+ * Permanently deletes the JoinDrive account: the User document and
+ * every GoogleAccount linked to it. This is what "frees" those Google
+ * accounts back up, so any of them (including the former primary) can
+ * be used to sign up fresh or be linked to a different JoinDrive user
+ * afterwards. Google Drive itself, and the files in it, are untouched
+ * — this only deletes JoinDrive's own records.
+ */
+export async function deleteAccount(req, res) {
+  try {
+    await GoogleAccount.deleteMany({ userId: req.user._id });
+    await User.findByIdAndDelete(req.user._id);
+
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+    });
+
+    return res.json({
+      success: true,
+      message: "JoinDrive account deleted",
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete account",
+    });
+  }
 }
