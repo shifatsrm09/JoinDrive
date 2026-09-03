@@ -18,6 +18,7 @@ import {
   move,
   share,
   download,
+  upload,
 } from "../controllers/drive.controller.js";
 
 const router = Router();
@@ -53,5 +54,8 @@ router.post("/:accountId/files/:fileId/move", move);
 router.post("/:accountId/files/:fileId/share", share);
 router.post("/:accountId/files/:fileId/restore", restore);
 router.delete("/:accountId/files/:fileId", remove);
+
+// Uploads a new file into a folder in that account.
+router.post("/:accountId/upload", upload);
 
 export default router;

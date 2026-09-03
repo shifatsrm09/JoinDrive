@@ -8,7 +8,10 @@ import driveRoutes from "./routes/drive.routes.js";
 
 const app = express();
 
-app.use(express.json());
+// Raised from Express's 100kb default so file uploads (sent as base64
+// JSON, see drive.controller.js's `upload`) fit. 34mb comfortably
+// covers the ~25MB file cap plus base64's ~33% size overhead.
+app.use(express.json({ limit: "34mb" }));
 app.use(cookieParser());
 
 app.use(

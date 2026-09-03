@@ -194,3 +194,38 @@ export function shareFile(
 export function downloadUrl(accountId: string, fileId: string) {
   return `${API_BASE_URL}${filePath(accountId, fileId)}/download`;
 }
+
+function readAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onerror = () => reject(new Error("Could not read the file"));
+
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Strips the "data:<mime>;base64," prefix FileReader adds.
+      resolve(result.slice(result.indexOf(",") + 1));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Uploads a local file into a folder in a specific account's Drive. */
+export async function uploadFile(
+  accountId: string,
+  folderId: string,
+  file: File
+) {
+  const data = await readAsBase64(file);
+
+  return apiFetch<DriveFileResponse>(`/drive/${accountId}/upload`, {
+    method: "POST",
+    body: JSON.stringify({
+      name: file.name,
+      mimeType: file.type || "application/octet-stream",
+      folderId,
+      data,
+    }),
+  });
+}

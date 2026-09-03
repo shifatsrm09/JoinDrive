@@ -9,6 +9,7 @@ import Breadcrumb from "./Breadcrumb";
 import FileGrid from "../file/FileGrid";
 import ExplorerGrid from "../file/ExplorerGrid";
 import AggregateGrid from "../file/AggregateGrid";
+import UploadDialog from "../file/UploadDialog";
 
 import type { Clipboard, DriveAccount } from "../../types/drive";
 
@@ -56,6 +57,11 @@ export default function ExplorerLayout() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showUpload, setShowUpload] = useState(false);
+
+  // Bumped after every completed upload so the destination folder's
+  // ExplorerGrid remounts and refetches, even when it was already open.
+  const [uploadNonce, setUploadNonce] = useState(0);
 
   // The clipboard lives here so a copied file survives folder
   // navigation and can be pasted somewhere else in the drive.
@@ -170,6 +176,16 @@ export default function ExplorerLayout() {
     pushEntry({ type: "folder", accountId, accountLabel, id, name });
   }
 
+  function handleUploaded(
+    accountId: string,
+    accountLabel: string,
+    folderId: string,
+    folderName: string
+  ) {
+    setUploadNonce((n) => n + 1);
+    openFolderIn(accountId, accountLabel, folderId, folderName);
+  }
+
   function navigateTo(index: number) {
     setCurrentIndex(index);
   }
@@ -187,6 +203,7 @@ export default function ExplorerLayout() {
         <Sidebar
           activeView={sidebarActiveView}
           onNavigateHome={() => pushEntry({ type: "dashboard" })}
+          onUpload={() => setShowUpload(true)}
           onSelectRecent={() => pushEntry({ type: "recent" })}
           onSelectFavorites={() => pushEntry({ type: "starred" })}
           onSelectTrash={() => pushEntry({ type: "trash" })}
@@ -242,6 +259,7 @@ export default function ExplorerLayout() {
           <FileGrid onOpenDrive={openDrive} refreshKey={connected} />
         ) : current.type === "folder" ? (
           <ExplorerGrid
+            key={`${current.accountId}-${current.id}-${uploadNonce}`}
             accountId={current.accountId}
             folderId={current.id}
             clipboard={clipboard}
@@ -252,6 +270,13 @@ export default function ExplorerLayout() {
           <AggregateGrid mode={current.type} onOpenFolder={openFolderIn} />
         )}
       </div>
+
+      {showUpload && (
+        <UploadDialog
+          onClose={() => setShowUpload(false)}
+          onUploaded={handleUploaded}
+        />
+      )}
     </div>
   );
 }

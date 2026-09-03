@@ -11,6 +11,7 @@ import {
   moveFile,
   shareFile,
   downloadFile,
+  uploadFile,
   listAggregated,
   searchFiles,
   restoreFile,
@@ -29,6 +30,9 @@ function accountIdFrom(req) {
   return req.params.accountId || null;
 }
 
+const MAX_UPLOAD_MB = 25;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+
 const NOT_FOUND_ERRORS = new Set([
   "Google account not found",
   "Invalid account id",
@@ -44,6 +48,10 @@ const BAD_REQUEST_ERRORS = new Set([
   "Unsupported share role",
   "An email address is required",
   "Unsupported view",
+  "A file name is required",
+  "The file appears to be empty",
+  "A file (data) is required",
+  `Files larger than ${MAX_UPLOAD_MB}MB are not supported yet`,
 ]);
 
 function fail(res, error) {
@@ -349,6 +357,43 @@ export async function download(req, res) {
     });
 
     stream.pipe(res);
+  } catch (error) {
+    return fail(res, error);
+  }
+}
+
+/**
+ * The client base64 encodes the file into the JSON body (see
+ * express.json's raised limit in app.js) rather than a multipart
+ * upload, so no extra middleware is needed on the server.
+ */
+export async function upload(req, res) {
+  try {
+    const { name, mimeType, data, folderId } = req.body || {};
+
+    if (!data) {
+      throw new Error("A file (data) is required");
+    }
+
+    const buffer = Buffer.from(data, "base64");
+
+    if (buffer.length > MAX_UPLOAD_BYTES) {
+      throw new Error(
+        `Files larger than ${MAX_UPLOAD_MB}MB are not supported yet`
+      );
+    }
+
+    const file = await uploadFile(
+      req.user._id,
+      accountIdFrom(req),
+      folderId || "root",
+      { name, mimeType, buffer }
+    );
+
+    return res.json({
+      success: true,
+      file,
+    });
   } catch (error) {
     return fail(res, error);
   }

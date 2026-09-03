@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { Readable } from "node:stream";
 import { google } from "googleapis";
 
 import GoogleAccount from "../models/GoogleAccount.js";
@@ -529,4 +530,43 @@ export async function downloadFile(userId, accountId, fileId) {
     mimeType: mimeType || "application/octet-stream",
     size: size || null,
   };
+}
+
+/**
+ * Uploads a new file into a folder from raw bytes (the client sends the
+ * file base64 encoded in the request body). Google Drive treats the
+ * upload as a normal multipart create, same as if it came from the web
+ * UI, so it shows up instantly for anyone the folder is shared with.
+ */
+export async function uploadFile(
+  userId,
+  accountId,
+  folderId = "root",
+  { name, mimeType, buffer }
+) {
+  const trimmed = String(name || "").trim();
+
+  if (!trimmed) {
+    throw new Error("A file name is required");
+  }
+
+  if (!buffer || buffer.length === 0) {
+    throw new Error("The file appears to be empty");
+  }
+
+  const drive = await driveFor(userId, accountId);
+
+  const { data } = await drive.files.create({
+    requestBody: {
+      name: trimmed,
+      parents: [folderId],
+    },
+    media: {
+      mimeType: mimeType || "application/octet-stream",
+      body: Readable.from(buffer),
+    },
+    fields: FILE_FIELDS,
+  });
+
+  return data;
 }

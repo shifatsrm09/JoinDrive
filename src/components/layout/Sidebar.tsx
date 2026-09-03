@@ -5,6 +5,7 @@ import {
   Clock3,
   Trash2,
   Plus,
+  UploadCloud,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -27,6 +28,7 @@ type SidebarAccount = {
 type SidebarProps = {
   activeView: SidebarView;
   onNavigateHome: () => void;
+  onUpload: () => void;
   onSelectRecent: () => void;
   onSelectFavorites: () => void;
   onSelectTrash: () => void;
@@ -36,6 +38,7 @@ type SidebarProps = {
 export default function Sidebar({
   activeView,
   onNavigateHome,
+  onUpload,
   onSelectRecent,
   onSelectFavorites,
   onSelectTrash,
@@ -81,6 +84,14 @@ export default function Sidebar({
       </button>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <button
+          onClick={onUpload}
+          className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#0E639C] px-3 py-2.5 text-sm font-medium text-white transition hover:bg-[#1177bb]"
+        >
+          <UploadCloud size={18} />
+          Upload
+        </button>
+
         {menuItems.map(({ icon: Icon, label, view, onSelect }) => (
           <button
             key={label}
