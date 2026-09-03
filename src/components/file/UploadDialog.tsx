@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import {
   CheckCircle2,
   ChevronRight,
   Folder,
   FolderOpen,
+  FolderPlus,
   HardDrive,
   Loader2,
   UploadCloud,
@@ -11,10 +13,17 @@ import {
 } from "lucide-react";
 
 import Modal from "../ui/Modal";
-import { getFiles, uploadFile } from "../../api/drive";
+import { createFolder, getFiles, uploadFile } from "../../api/drive";
 import { isFolder } from "../../types/drive";
 import type { DriveFile } from "../../types/drive";
 import { useAuth } from "../../context/AuthContext";
+
+export type UploadLocation = {
+  accountId: string;
+  accountLabel: string;
+  folderId: string;
+  folderName: string;
+};
 
 type UploadDialogProps = {
   onClose: () => void;
@@ -28,6 +37,12 @@ type UploadDialogProps = {
     folderId: string,
     folderName: string
   ) => void;
+  /**
+   * When the person opens Upload while already browsing a folder, that
+   * folder is the destination and the drive/folder picking steps are
+   * skipped entirely.
+   */
+  initialLocation?: UploadLocation;
 };
 
 type Step = "account" | "folder" | "uploading";
@@ -60,35 +75,51 @@ function formatSize(bytes: number) {
 export default function UploadDialog({
   onClose,
   onUploaded,
+  initialLocation,
 }: UploadDialogProps) {
   const { user } = useAuth();
   const accounts = user?.accounts ?? [];
 
-  const [step, setStep] = useState<Step>("account");
+  const locked = !!initialLocation;
 
-  const [accountId, setAccountId] = useState("");
-  const [accountLabel, setAccountLabel] = useState("");
+  const [step, setStep] = useState<Step>(locked ? "folder" : "account");
 
-  const [path, setPath] = useState<PathEntry[]>([]);
+  const [accountId, setAccountId] = useState(initialLocation?.accountId || "");
+  const [accountLabel, setAccountLabel] = useState(
+    initialLocation?.accountLabel || ""
+  );
+
+  const [path, setPath] = useState<PathEntry[]>(
+    initialLocation
+      ? [{ id: initialLocation.folderId, name: initialLocation.folderName }]
+      : []
+  );
   const currentFolder = path[path.length - 1];
 
   const [folders, setFolders] = useState<DriveFile[]>([]);
   const [loadingFolders, setLoadingFolders] = useState(false);
   const [folderError, setFolderError] = useState("");
 
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("New Folder");
+  const [creatingFolderBusy, setCreatingFolderBusy] = useState(false);
+  const [creatingFolderError, setCreatingFolderError] = useState("");
+
   const [items, setItems] = useState<UploadItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Skip the account picker entirely when there is only one Drive.
+  // Skip the account picker entirely when there is only one Drive, as
+  // long as the caller did not already lock the destination.
   useEffect(() => {
-    if (accounts.length === 1 && step === "account") {
+    if (!locked && accounts.length === 1 && step === "account") {
       selectAccount(accounts[0]._id, accounts[0].email);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The locked flow never browses folders, so it never needs this list.
   useEffect(() => {
-    if (step !== "folder" || !accountId || !currentFolder) {
+    if (locked || step !== "folder" || !accountId || !currentFolder) {
       return;
     }
 
@@ -118,7 +149,7 @@ export default function UploadDialog({
     return () => {
       cancelled = true;
     };
-  }, [step, accountId, currentFolder]);
+  }, [locked, step, accountId, currentFolder]);
 
   function selectAccount(id: string, email: string) {
     setAccountId(id);
@@ -128,11 +159,46 @@ export default function UploadDialog({
   }
 
   function enterFolder(folder: DriveFile) {
+    setCreatingFolder(false);
     setPath((prev) => [...prev, { id: folder.id, name: folder.name }]);
   }
 
   function jumpTo(index: number) {
+    setCreatingFolder(false);
     setPath((prev) => prev.slice(0, index + 1));
+  }
+
+  function openNewFolderForm() {
+    setNewFolderName("New Folder");
+    setCreatingFolderError("");
+    setCreatingFolder(true);
+  }
+
+  async function submitNewFolder(event: FormEvent) {
+    event.preventDefault();
+
+    const trimmed = newFolderName.trim();
+
+    if (!trimmed || creatingFolderBusy || !currentFolder) {
+      return;
+    }
+
+    try {
+      setCreatingFolderBusy(true);
+      setCreatingFolderError("");
+
+      const res = await createFolder(accountId, currentFolder.id, trimmed);
+
+      // Step straight into the folder just created, ready to upload.
+      setPath((prev) => [...prev, { id: res.file.id, name: res.file.name }]);
+      setCreatingFolder(false);
+    } catch (err: unknown) {
+      setCreatingFolderError(
+        err instanceof Error ? err.message : "Could not create the folder"
+      );
+    } finally {
+      setCreatingFolderBusy(false);
+    }
   }
 
   function openFilePicker() {
@@ -241,7 +307,44 @@ export default function UploadDialog({
         </div>
       )}
 
-      {step === "folder" && (
+      {step === "folder" && locked && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 rounded-lg border border-zinc-700 bg-[#1B1B1B] px-3 py-2.5">
+            <Folder size={18} className="shrink-0 text-blue-400" />
+            <div className="min-w-0">
+              <p className="truncate text-sm text-zinc-200">
+                {currentFolder?.name}
+              </p>
+              <p className="truncate text-xs text-zinc-500">
+                {accountLabel}
+              </p>
+            </div>
+          </div>
+
+          <p className="text-xs text-zinc-500">
+            Uploading into the folder you currently have open.
+          </p>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              onClick={onClose}
+              className="rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={openFilePicker}
+              className="flex items-center gap-2 rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8]"
+            >
+              <FolderOpen size={16} />
+              Choose files
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === "folder" && !locked && (
         <div className="space-y-3">
           {/* Breadcrumb */}
           <div className="flex flex-wrap items-center gap-1 text-xs text-zinc-400">
@@ -277,6 +380,45 @@ export default function UploadDialog({
 
           {/* Folder list */}
           <div className="h-56 overflow-y-auto rounded-lg border border-zinc-700">
+            {creatingFolder && (
+              <form
+                onSubmit={submitNewFolder}
+                className="flex items-center gap-2 border-b border-zinc-800 bg-[#1B1B1B] px-3 py-2"
+              >
+                <FolderPlus size={16} className="shrink-0 text-blue-400" />
+
+                <input
+                  autoFocus
+                  value={newFolderName}
+                  onChange={(event) => setNewFolderName(event.target.value)}
+                  onFocus={(event) => event.target.select()}
+                  className="min-w-0 flex-1 rounded border border-zinc-600 bg-[#252525] px-2 py-1 text-sm text-white outline-none focus:border-[#0E639C]"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setCreatingFolder(false)}
+                  className="shrink-0 rounded px-2 py-1 text-xs text-zinc-400 transition hover:bg-zinc-700 hover:text-white"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={!newFolderName.trim() || creatingFolderBusy}
+                  className="shrink-0 rounded bg-[#0E639C] px-2 py-1 text-xs font-medium text-white transition hover:bg-[#1177b8] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {creatingFolderBusy ? "Creating..." : "Create"}
+                </button>
+              </form>
+            )}
+
+            {creatingFolderError && (
+              <p className="border-b border-zinc-800 bg-red-500/10 px-3 py-1.5 text-xs text-red-300">
+                {creatingFolderError}
+              </p>
+            )}
+
             {loadingFolders ? (
               <div className="flex h-full items-center justify-center text-sm text-zinc-500">
                 Loading folders...
@@ -285,7 +427,7 @@ export default function UploadDialog({
               <div className="flex h-full items-center justify-center px-4 text-center text-sm text-red-400">
                 {folderError}
               </div>
-            ) : folders.length === 0 ? (
+            ) : folders.length === 0 && !creatingFolder ? (
               <div className="flex h-full items-center justify-center text-sm text-zinc-500">
                 No subfolders here
               </div>
@@ -307,13 +449,21 @@ export default function UploadDialog({
             )}
           </div>
 
-          <p className="text-xs text-zinc-500">
-            Files will be uploaded into{" "}
-            <span className="text-zinc-300">
-              {currentFolder?.name}
-            </span>
-            .
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={openNewFolderForm}
+              disabled={creatingFolder}
+              className="flex items-center gap-1.5 text-xs text-zinc-400 transition hover:text-white disabled:opacity-40"
+            >
+              <FolderPlus size={14} />
+              New folder
+            </button>
+
+            <p className="text-xs text-zinc-500">
+              Uploading into{" "}
+              <span className="text-zinc-300">{currentFolder?.name}</span>
+            </p>
+          </div>
 
           <div className="flex justify-end gap-2 pt-1">
             <button

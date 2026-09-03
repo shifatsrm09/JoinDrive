@@ -125,6 +125,18 @@ export function renameFile(
   );
 }
 
+/** Creates a new, empty folder inside a parent folder. */
+export function createFolder(
+  accountId: string,
+  parentId: string,
+  name: string
+) {
+  return apiFetch<DriveFileResponse>(`/drive/${accountId}/folders`, {
+    method: "POST",
+    body: JSON.stringify({ name, parentId }),
+  });
+}
+
 /** Moves the file to the Drive trash. It is recoverable from Drive. */
 export function deleteFile(accountId: string, fileId: string) {
   return apiFetch<{ success: boolean; message: string }>(

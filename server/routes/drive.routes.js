@@ -12,6 +12,7 @@ import {
   getAggregate,
   search,
   rename,
+  createFolder,
   remove,
   restore,
   copy,
@@ -57,5 +58,8 @@ router.delete("/:accountId/files/:fileId", remove);
 
 // Uploads a new file into a folder in that account.
 router.post("/:accountId/upload", upload);
+
+// Creates a new folder in that account.
+router.post("/:accountId/folders", createFolder);
 
 export default router;

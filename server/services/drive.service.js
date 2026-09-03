@@ -359,6 +359,33 @@ export async function renameFile(userId, accountId, fileId, name) {
   return data;
 }
 
+/** Creates a new, empty folder inside a parent folder. */
+export async function createFolder(
+  userId,
+  accountId,
+  parentId = "root",
+  name
+) {
+  const trimmed = String(name || "").trim();
+
+  if (!trimmed) {
+    throw new Error("Name cannot be empty");
+  }
+
+  const drive = await driveFor(userId, accountId);
+
+  const { data } = await drive.files.create({
+    requestBody: {
+      name: trimmed,
+      mimeType: FOLDER_MIME,
+      parents: [parentId],
+    },
+    fields: FILE_FIELDS,
+  });
+
+  return data;
+}
+
 /**
  * Delete moves the file to the Drive trash instead of destroying it.
  * The user can still restore it from Google Drive.

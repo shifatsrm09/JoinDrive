@@ -275,6 +275,16 @@ export default function ExplorerLayout() {
         <UploadDialog
           onClose={() => setShowUpload(false)}
           onUploaded={handleUploaded}
+          initialLocation={
+            current.type === "folder"
+              ? {
+                  accountId: current.accountId,
+                  accountLabel: current.accountLabel,
+                  folderId: current.id,
+                  folderName: current.name,
+                }
+              : undefined
+          }
         />
       )}
     </div>

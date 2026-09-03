@@ -6,6 +6,7 @@ import {
   getFile,
   disconnectAccount,
   renameFile,
+  createFolder as createFolderInDrive,
   trashFile,
   copyFile,
   moveFile,
@@ -225,6 +226,25 @@ export async function rename(req, res) {
       req.user._id,
       accountIdFrom(req),
       req.params.fileId,
+      req.body?.name
+    );
+
+    return res.json({
+      success: true,
+      file,
+    });
+  } catch (error) {
+    return fail(res, error);
+  }
+}
+
+/** Creates a new, empty folder inside a parent folder. */
+export async function createFolder(req, res) {
+  try {
+    const file = await createFolderInDrive(
+      req.user._id,
+      accountIdFrom(req),
+      req.body?.parentId || "root",
       req.body?.name
     );
 

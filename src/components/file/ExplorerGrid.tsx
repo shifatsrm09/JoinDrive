@@ -13,6 +13,7 @@ import {
   FileVideo,
   Folder,
   FolderOpen,
+  FolderPlus,
   Image,
   LayoutGrid,
   List,
@@ -27,11 +28,13 @@ import {
 import ContextMenu from "../ui/ContextMenu";
 import type { MenuItem } from "../ui/ContextMenu";
 import RenameDialog from "./RenameDialog";
+import NewFolderDialog from "./NewFolderDialog";
 import ConfirmDialog from "./ConfirmDialog";
 import ShareDialog from "./ShareDialog";
 
 import {
   copyFile,
+  createFolder,
   deleteFile,
   downloadUrl,
   getFiles,
@@ -65,6 +68,7 @@ type DialogState =
   | { kind: "rename"; file: DriveFile }
   | { kind: "delete"; file: DriveFile }
   | { kind: "share"; file: DriveFile }
+  | { kind: "newFolder" }
   | null;
 
 const SORT_LABELS: Record<SortKey, string> = {
@@ -376,6 +380,25 @@ export default function ExplorerGrid({
     }
   }
 
+  async function submitNewFolder(name: string) {
+    try {
+      setBusy(true);
+
+      await createFolder(accountId, folderId, name);
+
+      notify(`Created folder "${name}"`);
+      setDialog(null);
+      reload();
+    } catch (err: unknown) {
+      notify(
+        err instanceof Error ? err.message : "Could not create the folder",
+        true
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   /* ---------------------------------------------------------------- */
   /* Keyboard shortcuts                                               */
   /* ---------------------------------------------------------------- */
@@ -542,6 +565,13 @@ export default function ExplorerGrid({
 
   function buildBackgroundMenu(): MenuItem[] {
     return [
+      {
+        kind: "item",
+        label: "New folder",
+        icon: FolderPlus,
+        onSelect: () => setDialog({ kind: "newFolder" }),
+      },
+      { kind: "separator" },
       {
         kind: "item",
         label: clipboard ? `Paste "${clipboard.file.name}"` : "Paste",
@@ -905,6 +935,14 @@ export default function ExplorerGrid({
           file={dialog.file}
           onClose={() => setDialog(null)}
           onShared={(message) => notify(message)}
+        />
+      )}
+
+      {dialog?.kind === "newFolder" && (
+        <NewFolderDialog
+          busy={busy}
+          onCancel={() => setDialog(null)}
+          onSubmit={submitNewFolder}
         />
       )}
     </main>
