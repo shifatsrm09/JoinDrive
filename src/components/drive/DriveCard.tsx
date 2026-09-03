@@ -40,6 +40,7 @@ export default function DriveCard({
   const total = toGb(account.storage?.limit);
 
   const percentage = total > 0 ? (used / total) * 100 : 0;
+  const isStorageNearlyFull = percentage >= 90;
 
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(
@@ -94,12 +95,16 @@ export default function DriveCard({
     >
       <div className="flex items-start justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="shrink-0 rounded-xl bg-[#0E639C]/20 p-3">
+          <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#0E639C]/20 ${
+              account.picture ? "overflow-hidden" : "p-3"
+            }`}
+          >
             {account.picture ? (
               <img
                 src={account.picture}
                 alt=""
-                className="h-6 w-6 rounded-full"
+                className="h-full w-full object-cover"
                 referrerPolicy="no-referrer"
               />
             ) : (
@@ -153,7 +158,9 @@ export default function DriveCard({
 
         <div className="h-2 overflow-hidden rounded-full bg-zinc-700">
           <div
-            className="h-full rounded-full bg-[#0E639C] transition-all"
+            className={`h-full rounded-full transition-all ${
+              isStorageNearlyFull ? "bg-[#b30000]" : "bg-[#0E639C]"
+            }`}
             style={{
               width: `${Math.min(percentage, 100)}%`,
             }}
