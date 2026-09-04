@@ -24,8 +24,6 @@ type HistoryEntry =
       type: "folder";
       accountId: string;
       accountLabel: string;
-      // Ordered ancestors from the drive root (exclusive) down to the
-      // current folder (inclusive). Empty array = sitting at the drive root.
       path: FolderPathSegment[];
     };
 
@@ -72,8 +70,6 @@ function isNavState(value: unknown): value is NavState {
   );
 }
 
-// A folder entry's own "current folder" is just the last path segment —
-// or the drive root itself when the path is empty.
 function folderIdOf(entry: Extract<HistoryEntry, { type: "folder" }>) {
   return entry.path.length ? entry.path[entry.path.length - 1].id : "root";
 }
@@ -140,14 +136,6 @@ export default function ExplorerLayout() {
 
       const incoming = event.state;
 
-      // Each browser history entry's state was captured as a snapshot of the
-      // whole path array at the moment IT was pushed. An older entry (e.g.
-      // "B") was snapshotted before a later entry ("C") ever existed, so its
-      // stored array is shorter/stale. The in-memory `history` array we've
-      // been accumulating in this same component instance is always the
-      // authoritative, fullest version — never replace it with something
-      // shorter, only adopt a snapshot if it happens to be longer (e.g.
-      // restoring after a hard reload).
       setHistory((prevHistory) =>
         incoming.history.length > prevHistory.length
           ? incoming.history
@@ -267,9 +255,7 @@ export default function ExplorerLayout() {
     id: string,
     name: string
   ) {
-    // Jumping into a drive/folder from outside the current folder tree
-    // (sidebar drive picker, Recent/Starred/Trash/Search results) never
-    // inherits whatever path we were previously browsing.
+
     pushEntry({
       type: "folder",
       accountId,
@@ -288,9 +274,6 @@ export default function ExplorerLayout() {
     openFolderIn(accountId, accountLabel, folderId, folderName);
   }
 
-  // Breadcrumb-driven navigation. The breadcrumb only ever describes the
-  // CURRENT entry's own path, so these just push a fresh location — same
-  // as any other navigation — rather than reaching into the history stack.
   function goHome() {
     pushEntry({ type: "dashboard" });
   }

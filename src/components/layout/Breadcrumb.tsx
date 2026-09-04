@@ -21,8 +21,7 @@ type HistoryEntry =
     };
 
 type BreadcrumbProps = {
-  // The breadcrumb only ever reflects the CURRENT location. It never looks
-  // at navigation history — that's a separate concern owned by the parent.
+  
   current: HistoryEntry;
   onNavigateHome: () => void;
   onNavigateToFolder: (
