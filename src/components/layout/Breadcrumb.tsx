@@ -91,11 +91,11 @@ export default function Breadcrumb({
   const crumbs = buildCrumbs(current, onNavigateHome, onNavigateToFolder);
 
   return (
-    <div className="flex items-center gap-2 overflow-x-auto border-b border-zinc-800 bg-[#252525] px-6 py-3 text-sm">
+    <div className="flex w-full min-w-0 shrink-0 items-center gap-2 overflow-x-auto border-b border-zinc-800 bg-[#252525] px-3 py-2.5 text-sm sm:px-6 sm:py-3">
       {crumbs.map((crumb, index) => (
         <div
           key={index}
-          className="flex items-center gap-2 whitespace-nowrap"
+          className="flex shrink-0 items-center gap-2 whitespace-nowrap"
         >
           {index !== 0 && <span className="text-zinc-500">/</span>}
 
@@ -115,4 +115,3 @@ export default function Breadcrumb({
     </div>
   );
 }
-

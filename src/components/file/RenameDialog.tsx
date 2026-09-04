@@ -62,11 +62,11 @@ export default function RenameDialog({
           className="w-full rounded-lg border border-zinc-600 bg-[#1B1B1B] px-3 py-2 text-sm text-white outline-none focus:border-[#0E639C]"
         />
 
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700"
+            className="min-h-11 rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700"
           >
             Cancel
           </button>
@@ -74,7 +74,7 @@ export default function RenameDialog({
           <button
             type="submit"
             disabled={!trimmed || unchanged || busy}
-            className="rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8] disabled:cursor-not-allowed disabled:opacity-40"
+            className="min-h-11 rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {busy ? "Renaming..." : "Rename"}
           </button>

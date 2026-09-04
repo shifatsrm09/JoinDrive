@@ -86,7 +86,7 @@ export default function ContextMenu({
       role="menu"
       style={{ left: x, top: y, visibility: "hidden" }}
       onContextMenu={(event) => event.preventDefault()}
-      className="fixed z-50 min-w-[220px] select-none overflow-hidden rounded-xl border border-zinc-700 bg-[#2B2B2B] py-1.5 shadow-2xl"
+      className="fixed z-50 max-h-[calc(100dvh-1rem)] w-[min(220px,calc(100vw-1rem))] select-none overflow-y-auto rounded-xl border border-zinc-700 bg-[#2B2B2B] py-1.5 shadow-2xl sm:w-auto sm:min-w-[220px]"
     >
       {items.map((item, index) => {
         if (item.kind === "separator") {
@@ -113,7 +113,7 @@ export default function ContextMenu({
               onClose();
               item.onSelect();
             }}
-            className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition ${
+            className={`flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left text-sm transition sm:min-h-0 ${
               item.disabled
                 ? "cursor-not-allowed text-zinc-600"
                 : item.danger

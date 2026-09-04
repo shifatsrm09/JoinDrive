@@ -16,11 +16,12 @@ export async function apiFetch<T>(
   if (!response.ok) {
     const raw = await response.text();
 
-    let message = raw;
+    let message: string;
 
     try {
       message = JSON.parse(raw).message || raw;
     } catch {
+      message = raw || "Request failed";
     }
 
     throw new Error(message || "Request failed");

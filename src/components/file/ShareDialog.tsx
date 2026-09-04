@@ -81,10 +81,10 @@ export default function ShareDialog({
   return (
     <Modal title={`Share "${file.name}"`} onClose={onClose}>
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <button
             onClick={() => setType("anyone")}
-            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${
+            className={`flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${
               type === "anyone"
                 ? "border-[#0E639C] bg-[#0E639C]/15 text-white"
                 : "border-zinc-700 text-zinc-300 hover:bg-zinc-800"
@@ -96,7 +96,7 @@ export default function ShareDialog({
 
           <button
             onClick={() => setType("user")}
-            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${
+            className={`flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${
               type === "user"
                 ? "border-[#0E639C] bg-[#0E639C]/15 text-white"
                 : "border-zinc-700 text-zinc-300 hover:bg-zinc-800"
@@ -155,14 +155,14 @@ export default function ShareDialog({
         {error && <p className="text-sm text-red-400">{error}</p>}
 
         {done && link && (
-          <div className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-[#1B1B1B] px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2 rounded-lg border border-zinc-700 bg-[#1B1B1B] px-3 py-2">
             <span className="flex-1 truncate text-xs text-zinc-300">
               {link}
             </span>
 
             <button
               onClick={copyLink}
-              className="flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 transition hover:bg-zinc-700"
+              className="flex min-h-10 shrink-0 items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 transition hover:bg-zinc-700 sm:min-h-0"
             >
               {copied ? <Check size={14} /> : <Copy size={14} />}
               {copied ? "Copied" : "Copy"}
@@ -170,10 +170,10 @@ export default function ShareDialog({
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
+        <div className="flex flex-wrap justify-end gap-2 pt-1">
           <button
             onClick={onClose}
-            className="rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700"
+            className="min-h-11 rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700"
           >
             {done ? "Done" : "Cancel"}
           </button>
@@ -181,7 +181,7 @@ export default function ShareDialog({
           <button
             onClick={handleShare}
             disabled={busy}
-            className="rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8] disabled:cursor-not-allowed disabled:opacity-40"
+            className="min-h-11 rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {busy ? "Sharing..." : done ? "Update sharing" : "Share"}
           </button>

@@ -80,15 +80,26 @@ function folderNameOf(entry: Extract<HistoryEntry, { type: "folder" }>) {
     : entry.accountLabel;
 }
 
+function getInitialNavigation(): NavState {
+  const existing = window.history.state;
+
+  return isNavState(existing)
+    ? existing
+    : { history: [{ type: "dashboard" }], index: 0 };
+}
+
 export default function ExplorerLayout() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [initialNavigation] = useState(getInitialNavigation);
 
-  const [history, setHistory] = useState<HistoryEntry[]>([
-    { type: "dashboard" },
-  ]);
+  const [history, setHistory] = useState<HistoryEntry[]>(
+    initialNavigation.history
+  );
 
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(initialNavigation.index);
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    window.matchMedia("(min-width: 1024px)").matches
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [showUpload, setShowUpload] = useState(false);
 
@@ -100,6 +111,20 @@ export default function ExplorerLayout() {
 
   const canGoBack = currentIndex > 0;
   const canGoForward = currentIndex < history.length - 1;
+
+  useEffect(() => {
+    const desktopQuery = window.matchMedia("(min-width: 1024px)");
+
+    function handleBreakpointChange(event: MediaQueryListEvent) {
+      setSidebarOpen(event.matches);
+    }
+
+    desktopQuery.addEventListener("change", handleBreakpointChange);
+
+    return () => {
+      desktopQuery.removeEventListener("change", handleBreakpointChange);
+    };
+  }, []);
 
   function goBack() {
     if (currentIndex > 0) {
@@ -114,19 +139,14 @@ export default function ExplorerLayout() {
   }
 
   useEffect(() => {
-    const existing = window.history.state;
-
-    if (isNavState(existing)) {
-      setHistory(existing.history);
-      setCurrentIndex(existing.index);
-    } else {
+    if (!isNavState(window.history.state)) {
       window.history.replaceState(
-        { history: [{ type: "dashboard" }], index: 0 } satisfies NavState,
+        initialNavigation,
         "",
         window.location.pathname + window.location.search
       );
     }
-  }, []);
+  }, [initialNavigation]);
 
   useEffect(() => {
     function onPopState(event: PopStateEvent) {
@@ -156,10 +176,14 @@ export default function ExplorerLayout() {
     function onMouseUp(event: MouseEvent) {
       if (event.button === MOUSE_BACK_BUTTON) {
         event.preventDefault();
-        goBack();
+        if (currentIndex > 0) {
+          window.history.back();
+        }
       } else if (event.button === MOUSE_FORWARD_BUTTON) {
         event.preventDefault();
-        goForward();
+        if (currentIndex < history.length - 1) {
+          window.history.forward();
+        }
       }
     }
 
@@ -255,7 +279,6 @@ export default function ExplorerLayout() {
     id: string,
     name: string
   ) {
-
     pushEntry({
       type: "folder",
       accountId,
@@ -278,6 +301,14 @@ export default function ExplorerLayout() {
     pushEntry({ type: "dashboard" });
   }
 
+  function runSidebarAction(action: () => void) {
+    action();
+
+    if (!window.matchMedia("(min-width: 1024px)").matches) {
+      setSidebarOpen(false);
+    }
+  }
+
   function goToFolderPath(
     accountId: string,
     accountLabel: string,
@@ -290,26 +321,47 @@ export default function ExplorerLayout() {
     current.type === "folder" ? "folder" : current.type;
 
   return (
-    <div className="flex h-screen bg-[#1B1B1B] text-white">
+    <div className="flex h-dvh min-w-0 overflow-hidden bg-[#1B1B1B] text-white">
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+        />
+      )}
+
       <div
-        className={`overflow-hidden transition-[width] duration-200 ${
-          sidebarOpen ? "w-64" : "w-0"
+        className={`fixed inset-y-0 left-0 z-40 w-64 shrink-0 overflow-hidden transition-transform duration-200 lg:relative lg:z-auto lg:transition-[width] ${
+          sidebarOpen
+            ? "translate-x-0 lg:w-64"
+            : "-translate-x-full lg:w-0 lg:translate-x-0"
         }`}
       >
         <Sidebar
           activeView={sidebarActiveView}
-          onNavigateHome={goHome}
-          onUpload={() => setShowUpload(true)}
-          onSelectRecent={() => pushEntry({ type: "recent" })}
-          onSelectFavorites={() => pushEntry({ type: "starred" })}
-          onSelectTrash={() => pushEntry({ type: "trash" })}
+          onNavigateHome={() => runSidebarAction(goHome)}
+          onUpload={() =>
+            runSidebarAction(() => setShowUpload(true))
+          }
+          onSelectRecent={() =>
+            runSidebarAction(() => pushEntry({ type: "recent" }))
+          }
+          onSelectFavorites={() =>
+            runSidebarAction(() => pushEntry({ type: "starred" }))
+          }
+          onSelectTrash={() =>
+            runSidebarAction(() => pushEntry({ type: "trash" }))
+          }
           onSelectAccount={(accountId, email) =>
-            openFolderIn(accountId, email, "root", email)
+            runSidebarAction(() =>
+              openFolderIn(accountId, email, "root", email)
+            )
           }
         />
       </div>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Toolbar
           canGoBack={canGoBack}
           canGoForward={canGoForward}
@@ -328,13 +380,13 @@ export default function ExplorerLayout() {
 
         {notice && (
           <div
-            className={`flex items-center justify-between px-6 py-3 text-sm ${
+            className={`flex shrink-0 items-start justify-between gap-3 px-4 py-3 text-sm sm:items-center sm:px-6 ${
               connectError
                 ? "bg-red-500/10 text-red-300"
                 : "bg-green-500/10 text-green-300"
             }`}
           >
-            <span>{notice}</span>
+            <span className="min-w-0 break-words">{notice}</span>
 
             <button
               onClick={dismissNotice}

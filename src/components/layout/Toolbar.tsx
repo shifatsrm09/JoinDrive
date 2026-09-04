@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { logout, deleteAccount } from "../../api/auth";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/auth-context";
 import ContextMenu from "../ui/ContextMenu";
 import type { MenuItem } from "../ui/ContextMenu";
 import ConfirmDialog from "../file/ConfirmDialog";
@@ -118,12 +118,12 @@ export default function Toolbar({
   ];
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-zinc-800 bg-[#202020] px-6">
-      <div className="flex items-center gap-3">
+    <header className="flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-y-2 border-b border-zinc-800 bg-[#202020] px-3 py-2 md:h-16 md:flex-nowrap md:px-6 md:py-0">
+      <div className="flex items-center gap-1 sm:gap-3">
         <button
           onClick={onToggleSidebar}
           title="Toggle sidebar"
-          className="rounded-lg p-2 transition hover:bg-zinc-700"
+          className="flex h-10 w-10 items-center justify-center rounded-lg transition hover:bg-zinc-700"
         >
           <Menu size={22} />
         </button>
@@ -132,7 +132,7 @@ export default function Toolbar({
           onClick={onBack}
           disabled={!canGoBack}
           title="Back"
-          className={`rounded-lg p-2 transition ${
+          className={`flex h-10 w-10 items-center justify-center rounded-lg transition ${
             canGoBack ? "hover:bg-zinc-700" : "cursor-not-allowed opacity-40"
           }`}
         >
@@ -143,7 +143,7 @@ export default function Toolbar({
           onClick={onForward}
           disabled={!canGoForward}
           title="Forward"
-          className={`rounded-lg p-2 transition ${
+          className={`flex h-10 w-10 items-center justify-center rounded-lg transition ${
             canGoForward
               ? "hover:bg-zinc-700"
               : "cursor-not-allowed opacity-40"
@@ -153,7 +153,7 @@ export default function Toolbar({
         </button>
       </div>
 
-      <div className="hidden w-full max-w-xl px-10 md:flex">
+      <div className="order-3 flex w-full min-w-0 md:order-none md:max-w-xl md:px-10">
         <div className="flex w-full items-center gap-3 rounded-xl bg-[#2B2B2B] px-4 py-2 focus-within:ring-1 focus-within:ring-[#0E639C]">
           <Search size={18} className="shrink-0 text-zinc-400" />
 
@@ -162,7 +162,7 @@ export default function Toolbar({
             value={searchQuery}
             onChange={(event) => onSearchChange(event.target.value)}
             placeholder="Search your drives..."
-            className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-500"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-500"
           />
 
           {searchQuery && (
@@ -177,12 +177,12 @@ export default function Toolbar({
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="ml-auto flex shrink-0 items-center gap-3">
         <button
           ref={profileButtonRef}
           onClick={openProfileMenu}
           title={primaryAccount?.email || "Account"}
-          className="flex items-center gap-2 rounded-full p-1 pr-2 transition hover:bg-zinc-700"
+          className="flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-full p-1 transition hover:bg-zinc-700 sm:pr-2"
         >
           {primaryAccount?.picture ? (
             <img

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/auth-context";
 
 type RequireAuthProps = {
   children: ReactNode;
@@ -12,7 +12,7 @@ export default function RequireAuth({ children }: RequireAuthProps) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#1b1b1b] text-white">
+      <div className="flex min-h-dvh items-center justify-center bg-[#1b1b1b] text-white">
         Loading...
       </div>
     );

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import {
   ArrowDownAZ,
   ArrowUpAZ,
@@ -18,6 +19,7 @@ import {
   LayoutGrid,
   List,
   Music,
+  MoreVertical,
   Pencil,
   RefreshCw,
   Scissors,
@@ -302,6 +304,27 @@ export default function ExplorerGrid({
     },
     [accountId, notify]
   );
+
+  function handleItemClick(file: DriveFile) {
+    if (window.matchMedia("(hover: none), (pointer: coarse)").matches) {
+      openItem(file);
+      return;
+    }
+
+    setSelectedId(file.id);
+  }
+
+  function openFileMenu(
+    event: ReactMouseEvent<HTMLButtonElement>,
+    file: DriveFile
+  ) {
+    event.stopPropagation();
+
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    setSelectedId(file.id);
+    setMenu({ x: rect.right, y: rect.bottom + 4, file });
+  }
 
   const paste = useCallback(async () => {
     if (!clipboard || clipboard.accountId !== accountId) {
@@ -605,7 +628,7 @@ export default function ExplorerGrid({
 
   if (loading) {
     return (
-      <main className="flex flex-1 items-center justify-center">
+      <main className="flex min-w-0 flex-1 items-center justify-center p-4">
         <p className="text-zinc-400">Loading files...</p>
       </main>
     );
@@ -613,8 +636,8 @@ export default function ExplorerGrid({
 
   if (error) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-3">
-        <p className="text-red-400">{error}</p>
+      <main className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 p-4 text-center">
+        <p className="break-words text-red-400">{error}</p>
 
         <button
           onClick={reload}
@@ -638,7 +661,7 @@ export default function ExplorerGrid({
           setSelectedId(null);
         }
       }}
-      className="relative flex-1 overflow-auto bg-[#1B1B1B] p-6"
+      className="relative min-w-0 flex-1 overflow-auto bg-[#1B1B1B] p-4 sm:p-6"
     >
       <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
         <span className="text-zinc-500">Sort by</span>
@@ -664,7 +687,7 @@ export default function ExplorerGrid({
           title={
             sortDirection === "asc" ? "Ascending" : "Descending"
           }
-          className="rounded-lg p-1.5 text-zinc-300 transition hover:bg-zinc-800"
+          className="flex h-10 w-10 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-zinc-800 sm:h-auto sm:w-auto sm:p-1.5"
         >
           {sortDirection === "asc" ? (
             <ArrowDownAZ size={18} />
@@ -673,16 +696,25 @@ export default function ExplorerGrid({
           )}
         </button>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:ml-auto sm:w-auto sm:flex-nowrap">
+          <button
+            onClick={() => setDialog({ kind: "newFolder" })}
+            title="New folder"
+            className="flex h-10 items-center gap-2 rounded-lg bg-zinc-800 px-3 text-zinc-200 transition hover:bg-zinc-700 lg:hidden"
+          >
+            <FolderPlus size={16} />
+            New folder
+          </button>
+
           {clipboard && (
             <button
               onClick={paste}
               disabled={!canPaste}
-              className="flex items-center gap-2 rounded-lg bg-zinc-800 px-3 py-1.5 text-zinc-200 transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-10 min-w-0 items-center gap-2 rounded-lg bg-zinc-800 px-3 text-zinc-200 transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 sm:h-auto sm:py-1.5"
             >
               <ClipboardPaste size={16} />
               Paste
-              <span className="max-w-[140px] truncate text-zinc-500">
+              <span className="hidden max-w-[140px] truncate text-zinc-500 md:inline">
                 {clipboard.file.name}
               </span>
             </button>
@@ -691,12 +723,12 @@ export default function ExplorerGrid({
           <button
             onClick={reload}
             title="Refresh"
-            className="rounded-lg p-1.5 text-zinc-300 transition hover:bg-zinc-800"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-zinc-800 sm:h-auto sm:w-auto sm:p-1.5"
           >
             <RefreshCw size={18} />
           </button>
 
-          <div className="flex items-center gap-0.5 rounded-lg bg-zinc-800 p-0.5">
+          <div className="flex h-10 items-center gap-0.5 rounded-lg bg-zinc-800 p-0.5 sm:h-auto">
             <button
               onClick={() => changeViewMode("grid")}
               title="Grid view"
@@ -741,8 +773,8 @@ export default function ExplorerGrid({
           <p className="text-zinc-500">This folder is empty</p>
         </div>
       ) : viewMode === "list" ? (
-        <div className="overflow-hidden rounded-xl border border-zinc-800">
-          <div className="flex items-center gap-4 border-b border-zinc-800 bg-[#202020] px-4 py-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+        <div className="min-w-0 overflow-hidden rounded-xl border border-zinc-800">
+          <div className="flex min-w-0 items-center gap-3 border-b border-zinc-800 bg-[#202020] px-3 py-2 text-xs font-medium uppercase tracking-wide text-zinc-500 sm:gap-4 sm:px-4">
             <span className="w-9 shrink-0" />
 
             <button
@@ -769,12 +801,14 @@ export default function ExplorerGrid({
 
             <button
               onClick={() => setSortKey("size")}
-              className={`w-20 shrink-0 text-right transition hover:text-zinc-200 ${
+              className={`hidden w-20 shrink-0 text-right transition hover:text-zinc-200 sm:block ${
                 sortKey === "size" ? "text-zinc-200" : ""
               }`}
             >
               Size
             </button>
+
+            <span className="w-10 shrink-0 lg:hidden" />
           </div>
 
           {sorted.map((file) => {
@@ -792,7 +826,7 @@ export default function ExplorerGrid({
                     event.preventDefault();
                   }
                 }}
-                onClick={() => setSelectedId(file.id)}
+                onClick={() => handleItemClick(file)}
                 onDoubleClick={() => openItem(file)}
                 onContextMenu={(event) => {
                   event.preventDefault();
@@ -805,7 +839,7 @@ export default function ExplorerGrid({
                   });
                 }}
                 title={file.name}
-                className={`flex cursor-pointer select-none items-center gap-4 border-b border-zinc-800/60 px-4 py-2 transition-colors last:border-b-0 ${
+                className={`flex min-w-0 cursor-pointer select-none items-center gap-3 border-b border-zinc-800/60 px-3 py-2 transition-colors last:border-b-0 sm:gap-4 sm:px-4 ${
                   isSelected
                     ? "bg-[#0E639C]/15"
                     : "bg-[#252525] hover:bg-zinc-800/60"
@@ -830,15 +864,24 @@ export default function ExplorerGrid({
                   )}
                 </span>
 
-                <span className="w-20 shrink-0 text-right text-sm text-zinc-500">
+                <span className="hidden w-20 shrink-0 text-right text-sm text-zinc-500 sm:block">
                   {isFolder(file) ? "\u2014" : formatSize(file.size)}
                 </span>
+
+                <button
+                  type="button"
+                  title={`Actions for ${file.name}`}
+                  onClick={(event) => openFileMenu(event, file)}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-700 hover:text-white lg:hidden"
+                >
+                  <MoreVertical size={18} />
+                </button>
               </div>
             );
           })}
         </div>
       ) : (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid min-w-0 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 xl:grid-cols-5">
           {sorted.map((file) => {
             const isSelected = file.id === selectedId;
             const isCut =
@@ -854,7 +897,7 @@ export default function ExplorerGrid({
                     event.preventDefault();
                   }
                 }}
-                onClick={() => setSelectedId(file.id)}
+                onClick={() => handleItemClick(file)}
                 onDoubleClick={() => openItem(file)}
                 onContextMenu={(event) => {
                   event.preventDefault();
@@ -867,12 +910,21 @@ export default function ExplorerGrid({
                   });
                 }}
                 title={file.name}
-                className={`cursor-pointer select-none rounded-xl border p-5 transition-all duration-150 ${
+                className={`relative min-w-0 cursor-pointer select-none rounded-xl border p-4 transition-all duration-150 sm:p-5 ${
                   isSelected
                     ? "border-[#0E639C] bg-[#0E639C]/15"
                     : "border-zinc-800 bg-[#252525] hover:border-[#0E639C] hover:shadow-lg"
                 } ${isCut ? "opacity-50" : ""}`}
               >
+                <button
+                  type="button"
+                  title={`Actions for ${file.name}`}
+                  onClick={(event) => openFileMenu(event, file)}
+                  className="absolute right-2 top-2 flex h-10 w-10 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-700 hover:text-white lg:hidden"
+                >
+                  <MoreVertical size={18} />
+                </button>
+
                 <div className="mb-4 flex justify-center">
                   {getIcon(file)}
                 </div>

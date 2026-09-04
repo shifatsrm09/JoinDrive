@@ -2,7 +2,7 @@ import { Plus } from "lucide-react";
 
 import DriveCard from "../drive/DriveCard";
 import useDriveAccounts from "../../hooks/useDriveAccounts";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/auth-context";
 import { GOOGLE_CONNECT_URL } from "../../api/config";
 import type { DriveAccount } from "../../types/drive";
 import { openOAuthPopup } from "../../utils/openOAuthPopup";
@@ -29,9 +29,9 @@ export default function FileGrid({
   }
 
   return (
-    <main className="flex-1 overflow-auto bg-[#1B1B1B] p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Connected Drives</h1>
+    <main className="min-w-0 flex-1 overflow-auto bg-[#1B1B1B] p-4 sm:p-6">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-xl font-bold sm:text-2xl">Connected Drives</h1>
 
         {!loading && accounts.length > 0 && (
           <span className="text-sm text-zinc-500">
@@ -48,7 +48,7 @@ export default function FileGrid({
       {error && <p className="text-red-400">{error}</p>}
 
       {!loading && !error && (
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {accounts.map((account) => (
             <DriveCard
               key={account.id}
@@ -60,7 +60,7 @@ export default function FileGrid({
 
           <button
             onClick={handleAddDrive}
-            className="flex min-h-[190px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-700 bg-transparent p-5 text-zinc-400 transition-all duration-200 hover:border-[#0E639C] hover:text-[#4DA3FF]"
+            className="flex min-h-40 flex-col items-center justify-center gap-2.5 rounded-2xl border border-dashed border-zinc-700 bg-transparent p-4 text-zinc-400 transition-all duration-200 hover:border-[#0E639C] hover:text-[#4DA3FF]"
           >
             <div className="rounded-xl bg-zinc-800 p-3">
               <Plus size={24} />

@@ -1,30 +1,10 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { useEffect, useState } from "react";
 
 import type { ReactNode } from "react";
 
 import { getMe } from "../api/auth";
-import type { MeResponse } from "../api/auth";
-
-type AuthUser = MeResponse["user"];
-
-type AuthContextValue = {
-  user: AuthUser | null;
-  loading: boolean;
-  setUser: (user: AuthUser | null) => void;
-  refreshUser: () => Promise<void>;
-};
-
-const AuthContext = createContext<AuthContextValue>({
-  user: null,
-  loading: true,
-  setUser: () => {},
-  refreshUser: async () => {},
-});
+import { AuthContext } from "./auth-context";
+import type { AuthUser } from "./auth-context";
 
 export function AuthProvider({
   children,
@@ -34,22 +14,41 @@ export function AuthProvider({
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function loadUser() {
+  async function refreshUser() {
     try {
       const data = await getMe();
 
       if (data.success) {
         setUser(data.user);
       }
-    } catch (err) {
-      console.error(err);
+    } catch (error: unknown) {
+      console.error(error);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadUser();
+    let active = true;
+
+    void getMe()
+      .then((data) => {
+        if (active && data.success) {
+          setUser(data.user);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error(error);
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (
@@ -58,14 +57,10 @@ export function AuthProvider({
         user,
         loading,
         setUser,
-        refreshUser: loadUser,
+        refreshUser,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
 }

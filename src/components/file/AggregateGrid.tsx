@@ -105,18 +105,16 @@ export default function AggregateGrid({
 
   useEffect(() => {
     if (mode === "search" && trimmedQuery.length < 2) {
-      setFiles([]);
-      setLoading(false);
-      setError("");
       return;
     }
 
     let cancelled = false;
-    setLoading(true);
 
     const delay = mode === "search" ? 350 : 0;
 
     const timer = window.setTimeout(async () => {
+      setLoading(true);
+
       try {
         const res =
           mode === "search"
@@ -193,7 +191,7 @@ export default function AggregateGrid({
 
   if (mode === "search" && trimmedQuery.length < 2) {
     return (
-      <main className="flex flex-1 items-center justify-center bg-[#1B1B1B]">
+      <main className="flex min-w-0 flex-1 items-center justify-center bg-[#1B1B1B] p-4 text-center">
         <p className="text-zinc-500">Keep typing to search your drives...</p>
       </main>
     );
@@ -201,7 +199,7 @@ export default function AggregateGrid({
 
   if (loading) {
     return (
-      <main className="flex flex-1 items-center justify-center bg-[#1B1B1B]">
+      <main className="flex min-w-0 flex-1 items-center justify-center bg-[#1B1B1B] p-4">
         <p className="text-zinc-400">Loading...</p>
       </main>
     );
@@ -209,8 +207,8 @@ export default function AggregateGrid({
 
   if (error) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-3 bg-[#1B1B1B]">
-        <p className="text-red-400">{error}</p>
+      <main className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-[#1B1B1B] p-4 text-center">
+        <p className="break-words text-red-400">{error}</p>
 
         <button
           onClick={reload}
@@ -223,9 +221,9 @@ export default function AggregateGrid({
   }
 
   return (
-    <main className="relative flex-1 overflow-auto bg-[#1B1B1B] p-6">
-      <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">
+    <main className="relative min-w-0 flex-1 overflow-auto bg-[#1B1B1B] p-4 sm:p-6">
+      <div className="mb-5 flex min-w-0 items-center justify-between gap-3">
+        <h1 className="min-w-0 truncate text-xl font-bold sm:text-2xl">
           {mode === "search" ? `Results for "${trimmedQuery}"` : title}
         </h1>
 
@@ -233,7 +231,7 @@ export default function AggregateGrid({
           <button
             onClick={reload}
             title="Refresh"
-            className="rounded-lg p-1.5 text-zinc-300 transition hover:bg-zinc-800"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-zinc-800 sm:h-auto sm:w-auto sm:p-1.5"
           >
             <RefreshCw size={18} />
           </button>
@@ -241,17 +239,17 @@ export default function AggregateGrid({
       </div>
 
       {toast && (
-        <div className="mb-4 rounded-lg bg-green-500/10 px-4 py-2.5 text-sm text-green-300">
+        <div className="mb-4 break-words rounded-lg bg-green-500/10 px-4 py-2.5 text-sm text-green-300">
           {toast}
         </div>
       )}
 
       {files.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center py-20">
+        <div className="flex flex-1 items-center justify-center py-20 text-center">
           <p className="text-zinc-500">{EMPTY_MESSAGES[mode]}</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {files.map((file) => {
             const folder = isFolder(file);
             const busy = busyId === file.id;
@@ -259,14 +257,14 @@ export default function AggregateGrid({
             return (
               <div
                 key={`${file.accountId}-${file.id}`}
-                className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-[#252525] p-4 transition-all duration-150 hover:border-[#0E639C]"
+                className="flex min-w-0 items-center gap-2 rounded-xl border border-zinc-800 bg-[#252525] p-3 transition-all duration-150 hover:border-[#0E639C] sm:gap-3 sm:p-4"
               >
                 <button
                   onClick={() => openItem(file)}
                   className="flex min-w-0 flex-1 items-center gap-3 text-left"
                   title={file.name}
                 >
-                  {getIcon(file)}
+                  <span className="shrink-0">{getIcon(file)}</span>
 
                   <div className="min-w-0">
                     <p className="truncate font-medium">{file.name}</p>
@@ -283,7 +281,7 @@ export default function AggregateGrid({
                   <button
                     onClick={() => openItem(file)}
                     title={folder ? "Open" : "Open in Drive"}
-                    className="rounded-lg p-2 text-zinc-400 transition hover:bg-zinc-700 hover:text-white"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-700 hover:text-white sm:h-auto sm:w-auto sm:p-2"
                   >
                     {folder ? (
                       <FolderOpen size={16} />
@@ -297,7 +295,7 @@ export default function AggregateGrid({
                       onClick={() => handleRestore(file)}
                       disabled={busy}
                       title="Restore"
-                      className="rounded-lg p-2 text-zinc-400 transition hover:bg-zinc-700 hover:text-white disabled:opacity-40"
+                      className="flex h-10 w-10 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-700 hover:text-white disabled:opacity-40 sm:h-auto sm:w-auto sm:p-2"
                     >
                       <RotateCcw size={16} />
                     </button>
@@ -306,7 +304,7 @@ export default function AggregateGrid({
                       onClick={() => handleTrash(file)}
                       disabled={busy}
                       title="Move to trash"
-                      className="rounded-lg p-2 text-zinc-400 transition hover:bg-red-500/10 hover:text-red-400 disabled:opacity-40"
+                      className="flex h-10 w-10 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-red-500/10 hover:text-red-400 disabled:opacity-40 sm:h-auto sm:w-auto sm:p-2"
                     >
                       <Trash2 size={16} />
                     </button>

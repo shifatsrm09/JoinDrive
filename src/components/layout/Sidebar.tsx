@@ -10,7 +10,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import { GOOGLE_CONNECT_URL } from "../../api/config";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/auth-context";
 import driveIcon from "../../assets/icon/drive-icon.png";
 import { openOAuthPopup } from "../../utils/openOAuthPopup";
 
@@ -72,7 +72,7 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="flex w-64 flex-col border-r border-zinc-800 bg-[#1F1F1F]">
+    <aside className="flex h-full w-64 flex-col border-r border-zinc-800 bg-[#1F1F1F]">
       <button
         onClick={onNavigateHome}
         title="Go to home"
@@ -101,7 +101,7 @@ export default function Sidebar({
           <button
             key={label}
             onClick={onSelect}
-            className={`mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+            className={`mb-1 flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition lg:min-h-0 ${
               activeView === view
                 ? "bg-[#0E639C] text-white"
                 : "text-zinc-300 hover:bg-zinc-800"
@@ -122,7 +122,7 @@ export default function Sidebar({
               key={account._id}
               title={account.email}
               onClick={() => onSelectAccount(account._id, account.email)}
-              className="mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-zinc-300 transition hover:bg-zinc-800"
+              className="mb-1 flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-zinc-300 transition hover:bg-zinc-800 lg:min-h-0"
             >
               <HardDrive size={18} className="shrink-0" />
 
@@ -139,7 +139,7 @@ export default function Sidebar({
 
           <button
             onClick={handleAddDrive}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-300 transition hover:bg-zinc-800"
+            className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-300 transition hover:bg-zinc-800 lg:min-h-0"
           >
             <Plus size={18} />
             Add Google Drive

@@ -91,13 +91,13 @@ export default function DriveCard({
   return (
     <div
       onClick={onOpen}
-      className="cursor-pointer rounded-2xl border border-zinc-800 bg-[#252525] p-5 transition-all duration-200 hover:border-[#0E639C] hover:shadow-lg"
+      className="min-w-0 cursor-pointer overflow-hidden rounded-2xl border border-zinc-800 bg-[#252525] p-4 transition-all duration-200 hover:border-[#0E639C] hover:shadow-lg"
     >
-      <div className="flex items-start justify-between">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
           <div
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#0E639C]/20 ${
-              account.picture ? "overflow-hidden" : "p-3"
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0E639C]/20 ${
+              account.picture ? "overflow-hidden" : "p-2.5"
             }`}
           >
             {account.picture ? (
@@ -108,13 +108,13 @@ export default function DriveCard({
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <HardDrive className="text-[#4DA3FF]" size={24} />
+              <HardDrive className="text-[#4DA3FF]" size={22} />
             )}
           </div>
 
           <div className="min-w-0">
-            <h2 className="flex items-center gap-2 truncate font-semibold text-white">
-              {account.name}
+            <h2 className="flex min-w-0 items-center gap-2 font-semibold text-white">
+              <span className="min-w-0 truncate">{account.name}</span>
 
               {account.isPrimary && (
                 <span
@@ -139,14 +139,14 @@ export default function DriveCard({
             e.stopPropagation();
             openMenu();
           }}
-          className="shrink-0 rounded-lg p-2 transition hover:bg-zinc-700"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition hover:bg-zinc-700 sm:h-auto sm:w-auto sm:p-2"
         >
           <MoreVertical size={18} />
         </button>
       </div>
 
-      <div className="mt-6">
-        <div className="mb-2 flex justify-between text-sm">
+      <div className="mt-4">
+        <div className="mb-2 flex flex-wrap justify-between gap-x-3 gap-y-1 text-sm">
           <span>Storage</span>
 
           <span className="text-zinc-300">
@@ -169,7 +169,7 @@ export default function DriveCard({
       </div>
 
       <div
-        className={`mt-5 flex items-center gap-2 text-sm ${
+        className={`mt-4 flex items-center gap-2 text-sm ${
           account.connected ? "text-green-400" : "text-amber-400"
         }`}
       >

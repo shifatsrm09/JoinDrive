@@ -16,7 +16,7 @@ import Modal from "../ui/Modal";
 import { createFolder, getFiles, uploadFile } from "../../api/drive";
 import { isFolder } from "../../types/drive";
 import type { DriveFile } from "../../types/drive";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/auth-context";
 
 export type UploadLocation = {
   accountId: string;
@@ -72,17 +72,24 @@ export default function UploadDialog({
   const accounts = user?.accounts ?? [];
 
   const locked = !!initialLocation;
+  const onlyAccount = !locked && accounts.length === 1 ? accounts[0] : null;
 
-  const [step, setStep] = useState<Step>(locked ? "folder" : "account");
+  const [step, setStep] = useState<Step>(
+    locked || onlyAccount ? "folder" : "account"
+  );
 
-  const [accountId, setAccountId] = useState(initialLocation?.accountId || "");
+  const [accountId, setAccountId] = useState(
+    initialLocation?.accountId || onlyAccount?._id || ""
+  );
   const [accountLabel, setAccountLabel] = useState(
-    initialLocation?.accountLabel || ""
+    initialLocation?.accountLabel || onlyAccount?.email || ""
   );
 
   const [path, setPath] = useState<PathEntry[]>(
     initialLocation
       ? [{ id: initialLocation.folderId, name: initialLocation.folderName }]
+      : onlyAccount
+      ? [{ id: "root", name: onlyAccount.email }]
       : []
   );
   const currentFolder = path[path.length - 1];
@@ -98,12 +105,6 @@ export default function UploadDialog({
 
   const [items, setItems] = useState<UploadItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!locked && accounts.length === 1 && step === "account") {
-      selectAccount(accounts[0]._id, accounts[0].email);
-    }
-  }, []);
 
   useEffect(() => {
     if (locked || step !== "folder" || !accountId || !currentFolder) {
@@ -282,7 +283,7 @@ export default function UploadDialog({
               <button
                 key={account._id}
                 onClick={() => selectAccount(account._id, account.email)}
-                className="flex w-full items-center gap-3 rounded-lg border border-zinc-700 px-3 py-2.5 text-left text-sm transition hover:border-[#0E639C] hover:bg-[#0E639C]/10"
+                className="flex min-h-11 w-full items-center gap-3 rounded-lg border border-zinc-700 px-3 py-2.5 text-left text-sm transition hover:border-[#0E639C] hover:bg-[#0E639C]/10"
               >
                 <HardDrive size={18} className="shrink-0 text-[#4DA3FF]" />
                 <span className="truncate">{account.email}</span>
@@ -310,17 +311,17 @@ export default function UploadDialog({
             Uploading into the folder you currently have open.
           </p>
 
-          <div className="flex justify-end gap-2 pt-1">
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
             <button
               onClick={onClose}
-              className="rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700"
+              className="min-h-11 rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700"
             >
               Cancel
             </button>
 
             <button
               onClick={openFilePicker}
-              className="flex items-center gap-2 rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8]"
+              className="flex min-h-11 items-center gap-2 rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8]"
             >
               <FolderOpen size={16} />
               Choose files
@@ -331,7 +332,7 @@ export default function UploadDialog({
 
       {step === "folder" && !locked && (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-1 text-xs text-zinc-400">
+          <div className="flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto pb-1 text-xs text-zinc-400">
             {accounts.length > 1 && (
               <>
                 <button
@@ -345,7 +346,10 @@ export default function UploadDialog({
             )}
 
             {path.map((entry, index) => (
-              <span key={entry.id + index} className="flex items-center gap-1">
+              <span
+                key={entry.id + index}
+                className="flex shrink-0 items-center gap-1"
+              >
                 {index > 0 && <ChevronRight size={12} />}
                 <button
                   onClick={() => jumpTo(index)}
@@ -366,7 +370,7 @@ export default function UploadDialog({
             {creatingFolder && (
               <form
                 onSubmit={submitNewFolder}
-                className="flex items-center gap-2 border-b border-zinc-800 bg-[#1B1B1B] px-3 py-2"
+                className="flex flex-wrap items-center gap-2 border-b border-zinc-800 bg-[#1B1B1B] px-3 py-2"
               >
                 <FolderPlus size={16} className="shrink-0 text-blue-400" />
 
@@ -375,13 +379,13 @@ export default function UploadDialog({
                   value={newFolderName}
                   onChange={(event) => setNewFolderName(event.target.value)}
                   onFocus={(event) => event.target.select()}
-                  className="min-w-0 flex-1 rounded border border-zinc-600 bg-[#252525] px-2 py-1 text-sm text-white outline-none focus:border-[#0E639C]"
+                  className="min-w-32 flex-1 rounded border border-zinc-600 bg-[#252525] px-2 py-1 text-sm text-white outline-none focus:border-[#0E639C]"
                 />
 
                 <button
                   type="button"
                   onClick={() => setCreatingFolder(false)}
-                  className="shrink-0 rounded px-2 py-1 text-xs text-zinc-400 transition hover:bg-zinc-700 hover:text-white"
+                  className="min-h-10 shrink-0 rounded px-2 py-1 text-xs text-zinc-400 transition hover:bg-zinc-700 hover:text-white sm:min-h-0"
                 >
                   Cancel
                 </button>
@@ -389,7 +393,7 @@ export default function UploadDialog({
                 <button
                   type="submit"
                   disabled={!newFolderName.trim() || creatingFolderBusy}
-                  className="shrink-0 rounded bg-[#0E639C] px-2 py-1 text-xs font-medium text-white transition hover:bg-[#1177b8] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="min-h-10 shrink-0 rounded bg-[#0E639C] px-2 py-1 text-xs font-medium text-white transition hover:bg-[#1177b8] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0"
                 >
                   {creatingFolderBusy ? "Creating..." : "Create"}
                 </button>
@@ -419,7 +423,7 @@ export default function UploadDialog({
                 <button
                   key={folder.id}
                   onClick={() => enterFolder(folder)}
-                  className="flex w-full items-center gap-2.5 border-b border-zinc-800 px-3 py-2 text-left text-sm transition last:border-b-0 hover:bg-zinc-800"
+                  className="flex min-h-11 w-full items-center gap-2.5 border-b border-zinc-800 px-3 py-2 text-left text-sm transition last:border-b-0 hover:bg-zinc-800"
                 >
                   <Folder size={16} className="shrink-0 text-blue-400" />
                   <span className="truncate">{folder.name}</span>
@@ -432,33 +436,33 @@ export default function UploadDialog({
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
             <button
               onClick={openNewFolderForm}
               disabled={creatingFolder}
-              className="flex items-center gap-1.5 text-xs text-zinc-400 transition hover:text-white disabled:opacity-40"
+              className="flex min-h-10 items-center gap-1.5 text-xs text-zinc-400 transition hover:text-white disabled:opacity-40 sm:min-h-0"
             >
               <FolderPlus size={14} />
               New folder
             </button>
 
-            <p className="text-xs text-zinc-500">
+            <p className="min-w-0 max-w-full break-words text-xs text-zinc-500 sm:text-right">
               Uploading into{" "}
               <span className="text-zinc-300">{currentFolder?.name}</span>
             </p>
           </div>
 
-          <div className="flex justify-end gap-2 pt-1">
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
             <button
               onClick={onClose}
-              className="rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700"
+              className="min-h-11 rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700"
             >
               Cancel
             </button>
 
             <button
               onClick={openFilePicker}
-              className="flex items-center gap-2 rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8]"
+              className="flex min-h-11 items-center gap-2 rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8]"
             >
               <FolderOpen size={16} />
               Choose files here
@@ -469,7 +473,7 @@ export default function UploadDialog({
 
       {step === "uploading" && (
         <div className="space-y-3">
-          <p className="text-sm text-zinc-400">
+          <p className="break-words text-sm text-zinc-400">
             Uploading to{" "}
             <span className="text-zinc-200">{currentFolder?.name}</span>{" "}
             in {accountLabel}
@@ -514,7 +518,7 @@ export default function UploadDialog({
             <button
               onClick={finish}
               disabled={!allSettled}
-              className="rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8] disabled:cursor-not-allowed disabled:opacity-40"
+              className="min-h-11 rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {allSettled
                 ? `Done (${successCount}/${items.length} uploaded)`

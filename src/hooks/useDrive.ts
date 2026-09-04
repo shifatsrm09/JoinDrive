@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { getDriveInfo } from "../api/drive";
+import type { DriveAccount } from "../types/drive";
 
 export default function useDrive() {
-  const [drive, setDrive] = useState<any>(null);
+  const [drive, setDrive] = useState<DriveAccount | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -11,8 +12,8 @@ export default function useDrive() {
       try {
         const response = await getDriveInfo();
         setDrive(response.drive);
-      } catch (err: any) {
-        setError(err.message || "Failed to load drive");
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to load drive");
       } finally {
         setLoading(false);
       }

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/auth-context";
 import { GOOGLE_LOGIN_URL } from "../api/config";
 import driveIcon from "../assets/icon/drive-icon.png";
 import { openOAuthPopup } from "../utils/openOAuthPopup";
@@ -36,29 +36,31 @@ export default function Landing() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#1b1b1b] text-white">
+      <div className="flex min-h-dvh items-center justify-center bg-[#1b1b1b] text-white">
         Loading...
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#1b1b1b]">
-      <div className="text-center">
+    <div className="flex min-h-dvh items-center justify-center bg-[#1b1b1b] px-4 py-8">
+      <div className="w-full max-w-md text-center">
         <img
           src={driveIcon}
           alt=""
           className="mx-auto mb-4 h-16 w-16 object-contain"
         />
 
-        <h1 className="mb-3 text-6xl font-bold text-white">JoinDrive</h1>
+        <h1 className="mb-3 text-5xl font-bold text-white sm:text-6xl">
+          JoinDrive
+        </h1>
 
         <p className="mb-8 text-gray-400">
           All your Google Drives, in one place
         </p>
 
         {errorKey && (
-          <div className="mx-auto mb-6 max-w-md rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <div className="mx-auto mb-6 w-full break-words rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
             {ERROR_MESSAGES[errorKey] ||
               "Something went wrong. Please try again."}
 
@@ -72,7 +74,7 @@ export default function Landing() {
 
         <button
           onClick={handleLogin}
-          className="rounded-lg bg-[#0E639C] px-8 py-3 font-medium text-white transition hover:bg-[#1177bb]"
+          className="min-h-11 rounded-lg bg-[#0E639C] px-8 py-3 font-medium text-white transition hover:bg-[#1177bb]"
         >
           Continue with Google
         </button>
