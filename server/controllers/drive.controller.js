@@ -8,6 +8,7 @@ import {
   renameFile,
   createFolder as createFolderInDrive,
   trashFile,
+  setStarred,
   permanentlyDeleteFile,
   emptyAllTrash,
   copyFile,
@@ -275,7 +276,27 @@ export async function restore(req, res) {
   }
 }
 
-/** Permanently deletes a file, bypassing the trash entirely. */
+//Toggles a file's starred (favorite) state.
+export async function star(req, res) {
+  try {
+    const file = await setStarred(
+      req.user._id,
+      accountIdFrom(req),
+      req.params.fileId,
+      req.body?.starred
+    );
+
+    return res.json({
+      success: true,
+      file,
+      message: file.starred ? "Added to favorites" : "Removed from favorites",
+    });
+  } catch (error) {
+    return fail(res, error);
+  }
+}
+
+// Permanently deletes a file, bypassing the trash entirely.
 export async function destroy(req, res) {
   try {
     await permanentlyDeleteFile(

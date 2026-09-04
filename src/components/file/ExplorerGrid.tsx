@@ -24,6 +24,8 @@ import {
   RefreshCw,
   Scissors,
   Share2,
+  Star,
+  StarOff,
   Trash2,
 } from "lucide-react";
 
@@ -42,6 +44,7 @@ import {
   getFiles,
   moveFile,
   renameFile,
+  setStarred,
 } from "../../api/drive";
 
 import { isFolder } from "../../types/drive";
@@ -427,6 +430,33 @@ export default function ExplorerGrid({
     }
   }
 
+  async function toggleStar(file: DriveFile) {
+    const next = !file.starred;
+
+    try {
+      setBusy(true);
+
+      const res = await setStarred(accountId, file.id, next);
+
+      setFiles((prev) =>
+        prev.map((item) => (item.id === file.id ? res.file : item))
+      );
+
+      notify(
+        next
+          ? `Added "${file.name}" to favorites`
+          : `Removed "${file.name}" from favorites`
+      );
+    } catch (err: unknown) {
+      notify(
+        err instanceof Error ? err.message : "Could not update favorites",
+        true
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement;
@@ -568,6 +598,12 @@ export default function ExplorerGrid({
         icon: Share2,
         disabled: caps.canShare === false,
         onSelect: () => setDialog({ kind: "share", file }),
+      },
+      {
+        kind: "item",
+        label: file.starred ? "Remove from favorites" : "Add to favorites",
+        icon: file.starred ? StarOff : Star,
+        onSelect: () => toggleStar(file),
       },
       { kind: "separator" },
       {

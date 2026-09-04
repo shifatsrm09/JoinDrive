@@ -15,6 +15,7 @@ import {
   createFolder,
   remove,
   restore,
+  star,
   destroy,
   emptyTrash,
   copy,
@@ -53,6 +54,7 @@ router.post("/:accountId/files/:fileId/copy", copy);
 router.post("/:accountId/files/:fileId/move", move);
 router.post("/:accountId/files/:fileId/share", share);
 router.post("/:accountId/files/:fileId/restore", restore);
+router.patch("/:accountId/files/:fileId/star", star);
 router.delete("/:accountId/files/:fileId", remove);
 
 // Permanent, non-recoverable delete (skips the trash entirely).

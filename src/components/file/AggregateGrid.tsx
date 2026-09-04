@@ -13,6 +13,8 @@ import {
   Music,
   RefreshCw,
   RotateCcw,
+  Star,
+  StarOff,
   Trash2,
   XCircle,
 } from "lucide-react";
@@ -24,6 +26,7 @@ import {
   permanentlyDeleteFile,
   restoreFile,
   searchFiles,
+  setStarred,
 } from "../../api/drive";
 import type { AggregateFile, AggregateView } from "../../api/drive";
 import { isFolder } from "../../types/drive";
@@ -250,6 +253,41 @@ export default function AggregateGrid({
     }
   }
 
+  async function handleToggleStar(file: AggregateFile) {
+    const next = !file.starred;
+
+    try {
+      setBusyId(file.id);
+
+      await setStarred(file.accountId, file.id, next);
+
+      notify(
+        next
+          ? `Added "${file.name}" to favorites`
+          : `Removed "${file.name}" from favorites`
+      );
+
+      // Unstarring while looking at the Favorites view should drop the
+      // file out of the list immediately rather than waiting on a
+      // manual refresh.
+      if (mode === "starred" && !next) {
+        setFiles((prev) => prev.filter((item) => item.id !== file.id));
+      } else {
+        setFiles((prev) =>
+          prev.map((item) =>
+            item.id === file.id ? { ...item, starred: next } : item
+          )
+        );
+      }
+    } catch (err: unknown) {
+      notify(
+        err instanceof Error ? err.message : "Could not update favorites"
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function openMenu(event: MouseEvent, file: AggregateFile) {
     event.preventDefault();
     event.stopPropagation();
@@ -297,6 +335,12 @@ export default function AggregateGrid({
         onSelect: () => openItem(file),
       },
       { kind: "separator" },
+      {
+        kind: "item",
+        label: file.starred ? "Remove from favorites" : "Add to favorites",
+        icon: file.starred ? StarOff : Star,
+        onSelect: () => handleToggleStar(file),
+      },
       {
         kind: "item",
         label: "Move to trash",

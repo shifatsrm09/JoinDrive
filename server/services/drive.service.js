@@ -5,7 +5,7 @@ import GoogleAccount from "../models/GoogleAccount.js";
 import { getAuthenticatedClient } from "./google.service.js";
 
 const FILE_FIELDS =
-  "id,name,mimeType,size,modifiedTime,iconLink,thumbnailLink,webViewLink,parents,shared,owners(displayName,emailAddress,me),capabilities(canEdit,canRename,canDelete,canCopy,canShare,canDownload)";
+  "id,name,mimeType,size,modifiedTime,iconLink,thumbnailLink,webViewLink,parents,shared,starred,owners(displayName,emailAddress,me),capabilities(canEdit,canRename,canDelete,canCopy,canShare,canDownload)";
 
 
 const EXPORT_FORMATS = {
@@ -286,6 +286,19 @@ export async function restoreFile(userId, accountId, fileId) {
   return data;
 }
 
+//Toggles a file's starred (favorite) state. 
+export async function setStarred(userId, accountId, fileId, starred) {
+  const drive = await driveFor(userId, accountId);
+
+  const { data } = await drive.files.update({
+    fileId,
+    requestBody: { starred: !!starred },
+    fields: FILE_FIELDS,
+  });
+
+  return data;
+}
+
 
 export async function renameFile(userId, accountId, fileId, name) {
   const trimmed = String(name || "").trim();
@@ -344,10 +357,7 @@ export async function trashFile(userId, accountId, fileId) {
   return data;
 }
 
-/**
- * Permanently deletes a file. Unlike trashFile, this bypasses the
- * trash entirely — Google Drive cannot recover it after this call.
- */
+
 export async function permanentlyDeleteFile(userId, accountId, fileId) {
   const drive = await driveFor(userId, accountId);
 
@@ -356,11 +366,7 @@ export async function permanentlyDeleteFile(userId, accountId, fileId) {
   return { id: fileId };
 }
 
-/**
- * Empties the trash across every linked account at once, matching
- * the aggregated (all drives) nature of the Trash view. One account
- * failing (e.g. needs reconnect) doesn't stop the others.
- */
+
 export async function emptyAllTrash(userId) {
   const accounts = await GoogleAccount.find({ userId });
 

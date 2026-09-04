@@ -42,6 +42,7 @@ export interface DriveFile {
   webViewLink?: string;
   parents?: string[];
   shared?: boolean;
+  starred?: boolean;
   owners?: DriveOwner[];
   capabilities?: DriveCapabilities;
 }
