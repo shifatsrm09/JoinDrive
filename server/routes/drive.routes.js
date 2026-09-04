@@ -15,6 +15,8 @@ import {
   createFolder,
   remove,
   restore,
+  destroy,
+  emptyTrash,
   copy,
   move,
   share,
@@ -37,6 +39,9 @@ router.get("/files", getFiles);
 router.get("/aggregate", getAggregate);
 router.get("/search", search);
 
+// Empties the trash across every linked account.
+router.post("/trash/empty", emptyTrash);
+
 router.get("/:accountId/info", getInfo);
 router.get("/:accountId/storage", getStorage);
 router.get("/:accountId/files", getFiles);
@@ -49,6 +54,9 @@ router.post("/:accountId/files/:fileId/move", move);
 router.post("/:accountId/files/:fileId/share", share);
 router.post("/:accountId/files/:fileId/restore", restore);
 router.delete("/:accountId/files/:fileId", remove);
+
+// Permanent, non-recoverable delete (skips the trash entirely).
+router.delete("/:accountId/files/:fileId/permanent", destroy);
 
 router.post("/:accountId/upload", createUpload);
 

@@ -8,6 +8,8 @@ import {
   renameFile,
   createFolder as createFolderInDrive,
   trashFile,
+  permanentlyDeleteFile,
+  emptyAllTrash,
   copyFile,
   moveFile,
   shareFile,
@@ -267,6 +269,39 @@ export async function restore(req, res) {
       success: true,
       file,
       message: "Restored from trash",
+    });
+  } catch (error) {
+    return fail(res, error);
+  }
+}
+
+/** Permanently deletes a file, bypassing the trash entirely. */
+export async function destroy(req, res) {
+  try {
+    await permanentlyDeleteFile(
+      req.user._id,
+      accountIdFrom(req),
+      req.params.fileId
+    );
+
+    return res.json({
+      success: true,
+      message: "Permanently deleted",
+    });
+  } catch (error) {
+    return fail(res, error);
+  }
+}
+
+/** Empties the trash across every linked account. */
+export async function emptyTrash(req, res) {
+  try {
+    const result = await emptyAllTrash(req.user._id);
+
+    return res.json({
+      success: true,
+      ...result,
+      message: "Trash emptied",
     });
   } catch (error) {
     return fail(res, error);

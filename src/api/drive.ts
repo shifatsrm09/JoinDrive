@@ -141,6 +141,30 @@ export function restoreFile(accountId: string, fileId: string) {
   );
 }
 
+/**
+ * Permanently deletes a file, skipping the trash entirely — this is
+ * what "Delete forever" on an already-trashed file does. Unlike
+ * deleteFile, Google Drive cannot recover it after this call.
+ */
+export function permanentlyDeleteFile(accountId: string, fileId: string) {
+  return apiFetch<{ success: boolean; message: string }>(
+    `${filePath(accountId, fileId)}/permanent`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+/** Empties the trash across every linked account. */
+export function emptyTrash() {
+  return apiFetch<{ success: boolean; accounts: number; failed: number }>(
+    "/drive/trash/empty",
+    {
+      method: "POST",
+    }
+  );
+}
+
 export function copyFile(
   accountId: string,
   fileId: string,

@@ -344,6 +344,38 @@ export async function trashFile(userId, accountId, fileId) {
   return data;
 }
 
+/**
+ * Permanently deletes a file. Unlike trashFile, this bypasses the
+ * trash entirely — Google Drive cannot recover it after this call.
+ */
+export async function permanentlyDeleteFile(userId, accountId, fileId) {
+  const drive = await driveFor(userId, accountId);
+
+  await drive.files.delete({ fileId });
+
+  return { id: fileId };
+}
+
+/**
+ * Empties the trash across every linked account at once, matching
+ * the aggregated (all drives) nature of the Trash view. One account
+ * failing (e.g. needs reconnect) doesn't stop the others.
+ */
+export async function emptyAllTrash(userId) {
+  const accounts = await GoogleAccount.find({ userId });
+
+  const results = await Promise.allSettled(
+    accounts.map(async (account) => {
+      const drive = await getDriveClient(account);
+      await drive.files.emptyTrash();
+    })
+  );
+
+  const failed = results.filter((r) => r.status === "rejected").length;
+
+  return { accounts: accounts.length, failed };
+}
+
 export async function copyFile(
   userId,
   accountId,
