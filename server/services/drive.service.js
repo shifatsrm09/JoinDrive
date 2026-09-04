@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-import { Readable } from "node:stream";
 import { google } from "googleapis";
 
 import GoogleAccount from "../models/GoogleAccount.js";
@@ -359,7 +358,6 @@ export async function copyFile(
   });
 
   if (source.data.mimeType === FOLDER_MIME) {
-    // The Drive API cannot copy a folder in one call.
     throw new Error("Folders cannot be copied");
   }
 
@@ -493,35 +491,62 @@ export async function downloadFile(userId, accountId, fileId) {
 }
 
 
-export async function uploadFile(
+export async function createUploadSession(
   userId,
   accountId,
   folderId = "root",
-  { name, mimeType, buffer }
+  { name, mimeType, size }
 ) {
   const trimmed = String(name || "").trim();
+  const fileSize = Number(size);
+  const contentType = String(mimeType || "application/octet-stream");
 
   if (!trimmed) {
     throw new Error("A file name is required");
   }
 
-  if (!buffer || buffer.length === 0) {
+  if (!Number.isSafeInteger(fileSize) || fileSize <= 0) {
     throw new Error("The file appears to be empty");
   }
 
-  const drive = await driveFor(userId, accountId);
+  const account = await resolveAccount(userId, accountId);
+  const auth = await getAuthenticatedClient(account._id);
+  const drive = google.drive({ version: "v3", auth });
+  const { data: generatedIds } = await drive.files.generateIds({
+    count: 1,
+    space: "drive",
+  });
+  const fileId = generatedIds.ids?.[0];
 
-  const { data } = await drive.files.create({
-    requestBody: {
+  if (!fileId) {
+    throw new Error("Google Drive did not reserve a file id");
+  }
+
+  const response = await auth.request({
+    url: "https://www.googleapis.com/upload/drive/v3/files",
+    method: "POST",
+    params: {
+      uploadType: "resumable",
+      fields: FILE_FIELDS,
+    },
+    headers: {
+      "Content-Type": "application/json; charset=UTF-8",
+      "X-Upload-Content-Type": contentType,
+      "X-Upload-Content-Length": String(fileSize),
+    },
+    data: {
+      id: fileId,
       name: trimmed,
+      mimeType: contentType,
       parents: [folderId],
     },
-    media: {
-      mimeType: mimeType || "application/octet-stream",
-      body: Readable.from(buffer),
-    },
-    fields: FILE_FIELDS,
   });
 
-  return data;
+  const uploadUrl = response.headers.get("location");
+
+  if (!uploadUrl) {
+    throw new Error("Google Drive did not create an upload session");
+  }
+
+  return { uploadUrl, fileId };
 }

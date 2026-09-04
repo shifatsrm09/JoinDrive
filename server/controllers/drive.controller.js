@@ -12,7 +12,7 @@ import {
   moveFile,
   shareFile,
   downloadFile,
-  uploadFile,
+  createUploadSession,
   listAggregated,
   searchFiles,
   restoreFile,
@@ -22,9 +22,6 @@ import {
 function accountIdFrom(req) {
   return req.params.accountId || null;
 }
-
-const MAX_UPLOAD_MB = 25;
-const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
 const NOT_FOUND_ERRORS = new Set([
   "Google account not found",
@@ -43,8 +40,8 @@ const BAD_REQUEST_ERRORS = new Set([
   "Unsupported view",
   "A file name is required",
   "The file appears to be empty",
-  "A file (data) is required",
-  `Files larger than ${MAX_UPLOAD_MB}MB are not supported yet`,
+  "Google Drive did not reserve a file id",
+  "Google Drive did not create an upload session",
 ]);
 
 function fail(res, error) {
@@ -61,7 +58,6 @@ function fail(res, error) {
   } else if (BAD_REQUEST_ERRORS.has(error.message)) {
     status = 400;
   } else if (error.code === 403 || error.code === 404) {
-    // Propagate Google's own permission / missing file answers.
     status = error.code;
   }
 
@@ -367,32 +363,20 @@ export async function download(req, res) {
 }
 
 
-export async function upload(req, res) {
+export async function createUpload(req, res) {
   try {
-    const { name, mimeType, data, folderId } = req.body || {};
+    const { name, mimeType, size, folderId } = req.body || {};
 
-    if (!data) {
-      throw new Error("A file (data) is required");
-    }
-
-    const buffer = Buffer.from(data, "base64");
-
-    if (buffer.length > MAX_UPLOAD_BYTES) {
-      throw new Error(
-        `Files larger than ${MAX_UPLOAD_MB}MB are not supported yet`
-      );
-    }
-
-    const file = await uploadFile(
+    const session = await createUploadSession(
       req.user._id,
       accountIdFrom(req),
       folderId || "root",
-      { name, mimeType, buffer }
+      { name, mimeType, size }
     );
 
     return res.json({
       success: true,
-      file,
+      ...session,
     });
   } catch (error) {
     return fail(res, error);

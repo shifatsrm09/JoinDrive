@@ -6,6 +6,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  Gauge,
   HardDrive,
   Loader2,
   UploadCloud,
@@ -43,13 +44,13 @@ type PathEntry = { id: string; name: string };
 type UploadItem = {
   file: File;
   status: "pending" | "uploading" | "done" | "error";
+  progress: number;
+  speed: number;
   error?: string;
 };
 
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
-
 function formatSize(bytes: number) {
-  const units = ["B", "KB", "MB", "GB"];
+  const units = ["B", "KB", "MB", "GB", "TB"];
   let value = bytes;
   let unit = 0;
 
@@ -95,7 +96,9 @@ export default function UploadDialog({
   const currentFolder = path[path.length - 1];
 
   const [folders, setFolders] = useState<DriveFile[]>([]);
-  const [loadingFolders, setLoadingFolders] = useState(false);
+  const [loadingFolders, setLoadingFolders] = useState(
+    !locked && step === "folder" && !!accountId && !!currentFolder
+  );
   const [folderError, setFolderError] = useState("");
 
   const [creatingFolder, setCreatingFolder] = useState(false);
@@ -105,6 +108,11 @@ export default function UploadDialog({
 
   const [items, setItems] = useState<UploadItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => uploadControllerRef.current?.abort();
+  }, []);
 
   useEffect(() => {
     if (locked || step !== "folder" || !accountId || !currentFolder) {
@@ -112,7 +120,6 @@ export default function UploadDialog({
     }
 
     let cancelled = false;
-    setLoadingFolders(true);
 
     getFiles(currentFolder.id, accountId)
       .then((res) => {
@@ -140,6 +147,7 @@ export default function UploadDialog({
   }, [locked, step, accountId, currentFolder]);
 
   function selectAccount(id: string, email: string) {
+    setLoadingFolders(true);
     setAccountId(id);
     setAccountLabel(email);
     setPath([{ id: "root", name: email }]);
@@ -148,11 +156,13 @@ export default function UploadDialog({
 
   function enterFolder(folder: DriveFile) {
     setCreatingFolder(false);
+    setLoadingFolders(true);
     setPath((prev) => [...prev, { id: folder.id, name: folder.name }]);
   }
 
   function jumpTo(index: number) {
     setCreatingFolder(false);
+    setLoadingFolders(true);
     setPath((prev) => prev.slice(0, index + 1));
   }
 
@@ -177,6 +187,7 @@ export default function UploadDialog({
 
       const res = await createFolder(accountId, currentFolder.id, trimmed);
 
+      setLoadingFolders(true);
       setPath((prev) => [...prev, { id: res.file.id, name: res.file.name }]);
       setCreatingFolder(false);
     } catch (err: unknown) {
@@ -199,51 +210,99 @@ export default function UploadDialog({
 
     const chosen: UploadItem[] = Array.from(fileList).map((file) => ({
       file,
-      status: file.size > MAX_UPLOAD_BYTES ? "error" : "pending",
-      error:
-        file.size > MAX_UPLOAD_BYTES
-          ? "File is larger than the 25MB limit"
-          : undefined,
+      status: "pending",
+      progress: 0,
+      speed: 0,
     }));
 
+    const controller = new AbortController();
+
+    uploadControllerRef.current?.abort();
+    uploadControllerRef.current = controller;
     setItems(chosen);
     setStep("uploading");
-    void runUploads(chosen);
+    void runUploads(chosen, controller);
   }
 
-  async function runUploads(list: UploadItem[]) {
-    for (let i = 0; i < list.length; i++) {
-      if (list[i].status === "error") {
-        continue;
-      }
+  async function runUploads(list: UploadItem[], controller: AbortController) {
+    try {
+      for (let i = 0; i < list.length; i++) {
+        if (controller.signal.aborted) {
+          return;
+        }
 
-      setItems((prev) =>
-        prev.map((item, index) =>
-          index === i ? { ...item, status: "uploading" } : item
-        )
-      );
-
-      try {
-        await uploadFile(accountId, currentFolder.id, list[i].file);
-
-        setItems((prev) =>
-          prev.map((item, index) =>
-            index === i ? { ...item, status: "done" } : item
-          )
-        );
-      } catch (err: unknown) {
         setItems((prev) =>
           prev.map((item, index) =>
             index === i
-              ? {
-                  ...item,
-                  status: "error",
-                  error:
-                    err instanceof Error ? err.message : "Upload failed",
-                }
+              ? { ...item, status: "uploading", progress: 0, speed: 0 }
               : item
           )
         );
+
+        try {
+          let sampledAt = performance.now();
+          let sampledBytes = 0;
+          let displayedSpeed = 0;
+
+          await uploadFile(accountId, currentFolder.id, list[i].file, {
+            signal: controller.signal,
+            onProgress: (uploaded, total) => {
+              const progress =
+                total > 0 ? Math.round((uploaded / total) * 100) : 0;
+              const now = performance.now();
+              const elapsedSeconds = (now - sampledAt) / 1000;
+
+              if (elapsedSeconds >= 0.4 || uploaded === total) {
+                const currentSpeed =
+                  (uploaded - sampledBytes) / elapsedSeconds / (1024 * 1024);
+
+                displayedSpeed =
+                  displayedSpeed > 0
+                    ? displayedSpeed * 0.65 + currentSpeed * 0.35
+                    : currentSpeed;
+                sampledAt = now;
+                sampledBytes = uploaded;
+              }
+
+              setItems((prev) =>
+                prev.map((item, index) =>
+                  index === i
+                    ? { ...item, progress, speed: displayedSpeed }
+                    : item
+                )
+              );
+            },
+          });
+
+          setItems((prev) =>
+            prev.map((item, index) =>
+              index === i
+                ? { ...item, status: "done", progress: 100, speed: 0 }
+                : item
+            )
+          );
+        } catch (err: unknown) {
+          if (controller.signal.aborted) {
+            return;
+          }
+
+          setItems((prev) =>
+            prev.map((item, index) =>
+              index === i
+                ? {
+                    ...item,
+                    status: "error",
+                    error:
+                      err instanceof Error ? err.message : "Upload failed",
+                  }
+                : item
+            )
+          );
+        }
+      }
+    } finally {
+      if (uploadControllerRef.current === controller) {
+        uploadControllerRef.current = null;
       }
     }
   }
@@ -262,8 +321,13 @@ export default function UploadDialog({
     onClose();
   }
 
+  function closeDialog() {
+    uploadControllerRef.current?.abort();
+    onClose();
+  }
+
   return (
-    <Modal title="Upload to Drive" onClose={onClose}>
+    <Modal title="Upload to Drive" onClose={closeDialog}>
       <input
         ref={fileInputRef}
         type="file"
@@ -313,7 +377,7 @@ export default function UploadDialog({
 
           <div className="flex flex-wrap justify-end gap-2 pt-1">
             <button
-              onClick={onClose}
+              onClick={closeDialog}
               className="min-h-11 rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700"
             >
               Cancel
@@ -454,7 +518,7 @@ export default function UploadDialog({
 
           <div className="flex flex-wrap justify-end gap-2 pt-1">
             <button
-              onClick={onClose}
+              onClick={closeDialog}
               className="min-h-11 rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700"
             >
               Cancel
@@ -506,15 +570,51 @@ export default function UploadDialog({
 
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm">{item.file.name}</p>
-                  <p className="truncate text-xs text-zinc-500">
-                    {item.error || formatSize(item.file.size)}
-                  </p>
+                  {item.error ? (
+                    <p className="truncate text-xs text-zinc-500">
+                      {item.error}
+                    </p>
+                  ) : (
+                    <div className="flex min-w-0 items-center gap-2 text-xs text-zinc-500">
+                      <span className="min-w-0 truncate">
+                        {formatSize(item.file.size)}
+                        {item.status === "uploading"
+                          ? ` · ${item.progress}%`
+                          : ""}
+                      </span>
+
+                      {item.status === "uploading" && (
+                        <span className="ml-auto flex shrink-0 items-center gap-1 text-[#4DA3FF]">
+                          <Gauge size={13} />
+                          {item.speed.toFixed(1)} MB/s
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {item.status === "uploading" && (
+                    <div className="mt-1 h-1 overflow-hidden rounded-full bg-zinc-700">
+                      <div
+                        className="h-full rounded-full bg-[#0E639C] transition-[width]"
+                        style={{ width: `${item.progress}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="flex justify-end pt-1">
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+            {!allSettled && (
+              <button
+                onClick={closeDialog}
+                className="min-h-11 rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700"
+              >
+                Cancel upload
+              </button>
+            )}
+
             <button
               onClick={finish}
               disabled={!allSettled}

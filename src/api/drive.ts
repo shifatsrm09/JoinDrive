@@ -187,35 +187,229 @@ export function downloadUrl(accountId: string, fileId: string) {
   return `${API_BASE_URL}${filePath(accountId, fileId)}/download`;
 }
 
-function readAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+interface UploadSessionResponse {
+  success: boolean;
+  uploadUrl: string;
+  fileId: string;
+}
 
-    reader.onerror = () => reject(new Error("Could not read the file"));
+type UploadOptions = {
+  signal?: AbortSignal;
+  onProgress?: (uploaded: number, total: number) => void;
+};
 
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.slice(result.indexOf(",") + 1));
+type UploadResponse = {
+  status: number;
+  body: string;
+};
+
+class UploadNetworkError extends Error {
+  uploaded: number;
+
+  constructor(uploaded: number) {
+    super("The connection to Google Drive was interrupted");
+    this.name = "UploadNetworkError";
+    this.uploaded = uploaded;
+  }
+}
+
+function abortError() {
+  return new DOMException("Upload cancelled", "AbortError");
+}
+
+function uploadRequest(
+  uploadUrl: string,
+  file: File,
+  options: UploadOptions
+) {
+  return new Promise<UploadResponse>((resolve, reject) => {
+    if (options.signal?.aborted) {
+      reject(abortError());
+      return;
+    }
+
+    const request = new XMLHttpRequest();
+    let uploaded = 0;
+
+    function cleanup() {
+      options.signal?.removeEventListener("abort", handleAbort);
+    }
+
+    function handleAbort() {
+      request.abort();
+    }
+
+    request.open("PUT", uploadUrl);
+    request.setRequestHeader(
+      "Content-Type",
+      file.type || "application/octet-stream"
+    );
+
+    request.upload.onprogress = (event) => {
+      uploaded = Math.min(event.loaded, file.size);
+      options.onProgress?.(uploaded, file.size);
     };
 
-    reader.readAsDataURL(file);
+    request.upload.onload = () => {
+      uploaded = file.size;
+      options.onProgress?.(file.size, file.size);
+    };
+
+    request.onload = () => {
+      cleanup();
+      resolve({
+        status: request.status,
+        body: request.responseText,
+      });
+    };
+
+    request.onerror = () => {
+      cleanup();
+      reject(new UploadNetworkError(uploaded));
+    };
+
+    request.onabort = () => {
+      cleanup();
+      reject(abortError());
+    };
+
+    options.signal?.addEventListener("abort", handleAbort, { once: true });
+    request.send(file);
   });
+}
+
+function responseMessage(response: UploadResponse) {
+  try {
+    const parsed = JSON.parse(response.body) as {
+      error?: { message?: string };
+      message?: string;
+    };
+
+    return (
+      parsed.error?.message ||
+      parsed.message ||
+      "Google Drive rejected the upload"
+    );
+  } catch {
+    return response.body || "Google Drive rejected the upload";
+  }
+}
+
+function completedUpload(response: UploadResponse): DriveFileResponse {
+  try {
+    const file = JSON.parse(response.body) as DriveFile;
+
+    if (!file.id) {
+      throw new Error();
+    }
+
+    return { success: true, file };
+  } catch {
+    throw new Error("Google Drive completed the upload without file details");
+  }
+}
+
+function waitForVerification(signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortError());
+      return;
+    }
+
+    function handleAbort() {
+      window.clearTimeout(timer);
+      reject(abortError());
+    }
+
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener("abort", handleAbort);
+      resolve();
+    }, 1000);
+
+    signal?.addEventListener("abort", handleAbort, { once: true });
+  });
+}
+
+async function verifyUploadedFile(
+  accountId: string,
+  fileId: string,
+  signal?: AbortSignal
+) {
+  let lastError: unknown = new Error("Google Drive did not confirm the upload");
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      return await apiFetch<DriveFileResponse>(filePath(accountId, fileId), {
+        signal,
+      });
+    } catch (error: unknown) {
+      lastError = error;
+
+      if (attempt < 9) {
+        await waitForVerification(signal);
+      }
+    }
+  }
+
+  throw new Error(
+    lastError instanceof Error
+      ? `Google Drive did not confirm the upload: ${lastError.message}`
+      : "Google Drive did not confirm the upload"
+  );
 }
 
 export async function uploadFile(
   accountId: string,
   folderId: string,
-  file: File
+  file: File,
+  options: UploadOptions = {}
 ) {
-  const data = await readAsBase64(file);
+  if (file.size <= 0) {
+    throw new Error("The file appears to be empty");
+  }
 
-  return apiFetch<DriveFileResponse>(`/drive/${accountId}/upload`, {
-    method: "POST",
-    body: JSON.stringify({
-      name: file.name,
-      mimeType: file.type || "application/octet-stream",
-      folderId,
-      data,
-    }),
-  });
+  const session = await apiFetch<UploadSessionResponse>(
+    `/drive/${accountId}/upload`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name: file.name,
+        mimeType: file.type || "application/octet-stream",
+        folderId,
+        size: file.size,
+      }),
+      signal: options.signal,
+    }
+  );
+
+  options.onProgress?.(0, file.size);
+
+  try {
+    const response = await uploadRequest(session.uploadUrl, file, options);
+
+    if (response.status === 200 || response.status === 201) {
+      options.onProgress?.(file.size, file.size);
+
+      try {
+        return completedUpload(response);
+      } catch {
+        return verifyUploadedFile(accountId, session.fileId, options.signal);
+      }
+    }
+
+    throw new Error(responseMessage(response));
+  } catch (error: unknown) {
+    if (
+      error instanceof DOMException &&
+      error.name === "AbortError"
+    ) {
+      throw error;
+    }
+
+    if (error instanceof UploadNetworkError && error.uploaded >= file.size) {
+      return verifyUploadedFile(accountId, session.fileId, options.signal);
+    }
+
+    throw error;
+  }
 }
