@@ -13,6 +13,8 @@ import UploadDialog from "../file/UploadDialog";
 
 import type { Clipboard, DriveAccount } from "../../types/drive";
 
+type FolderPathSegment = { id: string; name: string };
+
 type HistoryEntry =
   | { type: "dashboard" }
   | { type: "recent" }
@@ -22,8 +24,9 @@ type HistoryEntry =
       type: "folder";
       accountId: string;
       accountLabel: string;
-      id: string;
-      name: string;
+      // Ordered ancestors from the drive root (exclusive) down to the
+      // current folder (inclusive). Empty array = sitting at the drive root.
+      path: FolderPathSegment[];
     };
 
 const CONNECT_MESSAGES: Record<string, string> = {
@@ -45,6 +48,41 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 const MOUSE_BACK_BUTTON = 3;
 const MOUSE_FORWARD_BUTTON = 4;
+
+function entriesEqual(a: HistoryEntry, b: HistoryEntry) {
+  if (a.type !== b.type) {
+    return false;
+  }
+
+  if (a.type === "folder" && b.type === "folder") {
+    return a.accountId === b.accountId && folderIdOf(a) === folderIdOf(b);
+  }
+
+  return true;
+}
+
+type NavState = { history: HistoryEntry[]; index: number };
+
+function isNavState(value: unknown): value is NavState {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    Array.isArray((value as NavState).history) &&
+    typeof (value as NavState).index === "number"
+  );
+}
+
+// A folder entry's own "current folder" is just the last path segment —
+// or the drive root itself when the path is empty.
+function folderIdOf(entry: Extract<HistoryEntry, { type: "folder" }>) {
+  return entry.path.length ? entry.path[entry.path.length - 1].id : "root";
+}
+
+function folderNameOf(entry: Extract<HistoryEntry, { type: "folder" }>) {
+  return entry.path.length
+    ? entry.path[entry.path.length - 1].name
+    : entry.accountLabel;
+}
 
 export default function ExplorerLayout() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -68,12 +106,63 @@ export default function ExplorerLayout() {
   const canGoForward = currentIndex < history.length - 1;
 
   function goBack() {
-    setCurrentIndex((prev) => Math.max(0, prev - 1));
+    if (currentIndex > 0) {
+      window.history.back();
+    }
   }
 
   function goForward() {
-    setCurrentIndex((prev) => Math.min(history.length - 1, prev + 1));
+    if (currentIndex < history.length - 1) {
+      window.history.forward();
+    }
   }
+
+  useEffect(() => {
+    const existing = window.history.state;
+
+    if (isNavState(existing)) {
+      setHistory(existing.history);
+      setCurrentIndex(existing.index);
+    } else {
+      window.history.replaceState(
+        { history: [{ type: "dashboard" }], index: 0 } satisfies NavState,
+        "",
+        window.location.pathname + window.location.search
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    function onPopState(event: PopStateEvent) {
+      if (!isNavState(event.state)) {
+        return;
+      }
+
+      const incoming = event.state;
+
+      // Each browser history entry's state was captured as a snapshot of the
+      // whole path array at the moment IT was pushed. An older entry (e.g.
+      // "B") was snapshotted before a later entry ("C") ever existed, so its
+      // stored array is shorter/stale. The in-memory `history` array we've
+      // been accumulating in this same component instance is always the
+      // authoritative, fullest version — never replace it with something
+      // shorter, only adopt a snapshot if it happens to be longer (e.g.
+      // restoring after a hard reload).
+      setHistory((prevHistory) =>
+        incoming.history.length > prevHistory.length
+          ? incoming.history
+          : prevHistory
+      );
+      setCurrentIndex(incoming.index);
+      setSearchQuery("");
+    }
+
+    window.addEventListener("popstate", onPopState);
+
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
 
   useEffect(() => {
     function onMouseUp(event: MouseEvent) {
@@ -102,7 +191,7 @@ export default function ExplorerLayout() {
       window.removeEventListener("mouseup", onMouseUp);
       window.removeEventListener("mousedown", onMouseDown);
     };
-  }, [history.length]);
+  }, [currentIndex, history.length]);
 
   const connected = searchParams.get("connected");
   const connectError = searchParams.get("error");
@@ -118,15 +207,35 @@ export default function ExplorerLayout() {
 
   function dismissNotice() {
     setSearchParams({}, { replace: true });
+
+    window.history.replaceState(
+      { history, index: currentIndex } satisfies NavState,
+      "",
+      window.location.pathname
+    );
   }
 
   function pushEntry(entry: HistoryEntry) {
+    const top = history[currentIndex];
+
+    if (top && entriesEqual(top, entry)) {
+      return;
+    }
+
     const newHistory = history.slice(0, currentIndex + 1);
 
     newHistory.push(entry);
 
+    const newIndex = newHistory.length - 1;
+
+    window.history.pushState(
+      { history: newHistory, index: newIndex } satisfies NavState,
+      "",
+      window.location.pathname + window.location.search
+    );
+
     setHistory(newHistory);
-    setCurrentIndex(newHistory.length - 1);
+    setCurrentIndex(newIndex);
     setSearchQuery("");
   }
 
@@ -135,8 +244,7 @@ export default function ExplorerLayout() {
       type: "folder",
       accountId: account.id,
       accountLabel: account.email,
-      id: "root",
-      name: account.email,
+      path: [],
     });
   }
 
@@ -149,8 +257,7 @@ export default function ExplorerLayout() {
       type: "folder",
       accountId: current.accountId,
       accountLabel: current.accountLabel,
-      id,
-      name,
+      path: [...current.path, { id, name }],
     });
   }
 
@@ -160,7 +267,15 @@ export default function ExplorerLayout() {
     id: string,
     name: string
   ) {
-    pushEntry({ type: "folder", accountId, accountLabel, id, name });
+    // Jumping into a drive/folder from outside the current folder tree
+    // (sidebar drive picker, Recent/Starred/Trash/Search results) never
+    // inherits whatever path we were previously browsing.
+    pushEntry({
+      type: "folder",
+      accountId,
+      accountLabel,
+      path: id === "root" ? [] : [{ id, name }],
+    });
   }
 
   function handleUploaded(
@@ -173,8 +288,19 @@ export default function ExplorerLayout() {
     openFolderIn(accountId, accountLabel, folderId, folderName);
   }
 
-  function navigateTo(index: number) {
-    setCurrentIndex(index);
+  // Breadcrumb-driven navigation. The breadcrumb only ever describes the
+  // CURRENT entry's own path, so these just push a fresh location — same
+  // as any other navigation — rather than reaching into the history stack.
+  function goHome() {
+    pushEntry({ type: "dashboard" });
+  }
+
+  function goToFolderPath(
+    accountId: string,
+    accountLabel: string,
+    path: FolderPathSegment[]
+  ) {
+    pushEntry({ type: "folder", accountId, accountLabel, path });
   }
 
   const sidebarActiveView: SidebarView =
@@ -189,7 +315,7 @@ export default function ExplorerLayout() {
       >
         <Sidebar
           activeView={sidebarActiveView}
-          onNavigateHome={() => pushEntry({ type: "dashboard" })}
+          onNavigateHome={goHome}
           onUpload={() => setShowUpload(true)}
           onSelectRecent={() => pushEntry({ type: "recent" })}
           onSelectFavorites={() => pushEntry({ type: "starred" })}
@@ -212,9 +338,9 @@ export default function ExplorerLayout() {
         />
 
         <Breadcrumb
-          history={history}
-          currentIndex={currentIndex}
-          onNavigate={navigateTo}
+          current={current}
+          onNavigateHome={goHome}
+          onNavigateToFolder={goToFolderPath}
         />
 
         {notice && (
@@ -246,9 +372,9 @@ export default function ExplorerLayout() {
           <FileGrid onOpenDrive={openDrive} refreshKey={connected} />
         ) : current.type === "folder" ? (
           <ExplorerGrid
-            key={`${current.accountId}-${current.id}-${uploadNonce}`}
+            key={`${current.accountId}-${folderIdOf(current)}-${uploadNonce}`}
             accountId={current.accountId}
-            folderId={current.id}
+            folderId={folderIdOf(current)}
             clipboard={clipboard}
             onClipboardChange={setClipboard}
             onOpenFolder={openFolder}
@@ -267,8 +393,8 @@ export default function ExplorerLayout() {
               ? {
                   accountId: current.accountId,
                   accountLabel: current.accountLabel,
-                  folderId: current.id,
-                  folderName: current.name,
+                  folderId: folderIdOf(current),
+                  folderName: folderNameOf(current),
                 }
               : undefined
           }
