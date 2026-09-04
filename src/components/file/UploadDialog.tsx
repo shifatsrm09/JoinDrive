@@ -606,23 +606,17 @@ export default function UploadDialog({
           </div>
 
           <div className="flex flex-wrap justify-end gap-2 pt-1">
-            {!allSettled && (
-              <button
-                onClick={closeDialog}
-                className="min-h-11 rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700"
-              >
-                Cancel upload
-              </button>
-            )}
-
             <button
-              onClick={finish}
-              disabled={!allSettled}
-              className="min-h-11 rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8] disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={allSettled ? finish : closeDialog}
+              className={`min-h-11 rounded-lg px-4 py-2 text-sm font-medium transition ${
+                allSettled
+                  ? "bg-[#0E639C] text-white hover:bg-[#1177b8]"
+                  : "text-zinc-300 hover:bg-zinc-700"
+              }`}
             >
               {allSettled
                 ? `Done (${successCount}/${items.length} uploaded)`
-                : "Uploading..."}
+                : "Cancel"}
             </button>
           </div>
         </div>
