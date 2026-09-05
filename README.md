@@ -51,11 +51,19 @@ Tailwind CSS
 npm run dev
 ```
 
-Default URL
+The frontend listens on `FRONTEND_HOST` and `FRONTEND_PORT` from the root `.env`.
 
-```
-http://localhost:5173
-```
+### Localhost and phone access
+
+The root `.env` uses `VITE_API_URL` as a comma-separated list of backend API URLs. `server/.env` uses `CLIENT_URL` as a comma-separated list of allowed frontend origins. The entries act as OR alternatives; do not put the word `OR` or `||` between them.
+
+Replace `YOUR_IPV4` in both files with your computer's IPv4 address. Keep the localhost entries to continue using either address. The browser selects the API URL matching its hostname, and the backend accepts either configured frontend origin. The first URL is the default when no hostname matches.
+
+`FRONTEND_HOST` in the root `.env` and `HOST` in `server/.env` control the listening interfaces. The provided values listen on all interfaces for LAN access. `FRONTEND_PORT` and backend `PORT` control the ports; update the corresponding URL entries if you change either port.
+
+Restart both development servers after editing the environment files. Connect your phone to the same network and open your computer's IPv4 address with the frontend port. If the page cannot be reached, allow the configured ports through Windows Firewall on your private network.
+
+Google OAuth callback URLs remain in `GOOGLE_REDIRECT_URI` and `GOOGLE_CONNECT_REDIRECT_URI` in `server/.env`. Google does not accept private IPv4 addresses as web OAuth callback hosts, and a localhost callback on a phone points to the phone. Signing in from a phone therefore requires a registered HTTPS domain or tunnel, with matching callback URLs in Google Cloud and matching frontend/API environment settings. See [Google's redirect URI rules](https://developers.google.com/identity/protocols/oauth2/web-server#uri-validation).
 
 ---
 
@@ -74,11 +82,7 @@ http://localhost:5173
 
 The backend server must be running before starting the frontend.
 
-Backend URL
-
-```
-http://localhost:5000
-```
+The backend API URLs are configured through `VITE_API_URL` in the root `.env`.
 
 ---
 
@@ -175,11 +179,7 @@ npm install cors
 npm run dev
 ```
 
-Default URL
-
-```
-http://localhost:5000
-```
+The backend listens on `HOST` and `PORT` from `server/.env`.
 
 ---
 

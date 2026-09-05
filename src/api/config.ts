@@ -1,5 +1,16 @@
+const apiUrls = (import.meta.env.VITE_API_URL || "")
+  .split(",")
+  .map((url: string) => url.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+
+if (!apiUrls.length) {
+  throw new Error("VITE_API_URL must be set in the frontend .env file");
+}
+
 export const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+  apiUrls.find(
+    (url: string) => new URL(url).hostname === window.location.hostname
+  ) || apiUrls[0];
 
 export const GOOGLE_LOGIN_URL = `${API_BASE_URL}/auth/google`;
 

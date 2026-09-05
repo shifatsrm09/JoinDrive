@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import authRoutes from "./routes/auth.routes.js";
 import healthRoutes from "./routes/health.routes.js";
 import driveRoutes from "./routes/drive.routes.js";
+import { clientUrls } from "./config/client.js";
 
 const app = express();
 
@@ -14,7 +15,7 @@ app.use(cookieParser());
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: clientUrls,
     credentials: true,
   })
 );

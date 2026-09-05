@@ -12,7 +12,7 @@ import { generateToken } from "../utils/jwt.js";
 import User from "../models/User.js";
 import GoogleAccount from "../models/GoogleAccount.js";
 
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
+import { getClientUrl } from "../config/client.js";
 
 const SCOPES = [
   "openid",
@@ -27,14 +27,14 @@ const LOGIN_STATE_COOKIE = "login_oauth_state";
 function cookieOptions(maxAge) {
   return {
     httpOnly: true,
-    secure: false, // set to true in production behind HTTPS
+    secure: false,
     sameSite: "lax",
     maxAge,
   };
 }
 
-function redirectToClient(res, path, params) {
-  const url = new URL(path, CLIENT_URL);
+function redirectToClient(req, res, path, params) {
+  const url = new URL(path, getClientUrl(req));
 
   Object.entries(params || {}).forEach(([key, value]) => {
     url.searchParams.set(key, value);
@@ -43,12 +43,12 @@ function redirectToClient(res, path, params) {
   return res.redirect(url.toString());
 }
 
-function finishOAuth(res, path, params, isPopup) {
+function finishOAuth(req, res, path, params, isPopup) {
   if (!isPopup) {
-    return redirectToClient(res, path, params);
+    return redirectToClient(req, res, path, params);
   }
 
-  const destination = new URL(path, CLIENT_URL);
+  const destination = new URL(path, getClientUrl(req));
 
   Object.entries(params || {}).forEach(([key, value]) => {
     destination.searchParams.set(key, value);
@@ -154,13 +154,13 @@ export async function googleCallback(req, res) {
     }
 
     if (!code) {
-      return finishOAuth(res, "/", {
+      return finishOAuth(req, res, "/", {
         error: "missing_code",
       }, decodedState?.popup === true);
     }
 
     if (!stateOk) {
-      return redirectToClient(res, "/", {
+      return redirectToClient(req, res, "/", {
         error: "invalid_state",
       });
     }
@@ -185,7 +185,7 @@ export async function googleCallback(req, res) {
         });
 
         if (existingPrimary) {
-          return finishOAuth(res, "/", {
+          return finishOAuth(req, res, "/", {
             error: "secondary_account",
             email: profile.email,
           }, decodedState.popup === true);
@@ -221,11 +221,11 @@ export async function googleCallback(req, res) {
 
     res.cookie("token", token, cookieOptions(30 * 24 * 60 * 60 * 1000));
 
-    return finishOAuth(res, "/explorer", null, decodedState.popup === true);
+    return finishOAuth(req, res, "/explorer", null, decodedState.popup === true);
   } catch (error) {
     console.error(error);
 
-    return finishOAuth(res, "/", {
+    return finishOAuth(req, res, "/", {
       error: "login_failed",
     }, decodedState?.popup === true);
   }
@@ -273,7 +273,7 @@ export async function googleConnectCallback(req, res) {
     });
 
     if (!state) {
-      return redirectToClient(res, "/explorer", {
+      return redirectToClient(req, res, "/explorer", {
         error: "connect_cancelled",
       });
     }
@@ -281,19 +281,19 @@ export async function googleConnectCallback(req, res) {
     try {
       decoded = jwt.verify(state, process.env.JWT_SECRET);
     } catch {
-      return redirectToClient(res, "/explorer", {
+      return redirectToClient(req, res, "/explorer", {
         error: "invalid_state",
       });
     }
 
     if (!nonce || decoded.nonce !== nonce) {
-      return finishOAuth(res, "/explorer", {
+      return finishOAuth(req, res, "/explorer", {
         error: "invalid_state",
       }, decoded.popup === true);
     }
 
     if (!code) {
-      return finishOAuth(res, "/explorer", {
+      return finishOAuth(req, res, "/explorer", {
         error: "connect_cancelled",
       }, decoded.popup === true);
     }
@@ -301,7 +301,7 @@ export async function googleConnectCallback(req, res) {
     const user = await User.findById(decoded.userId);
 
     if (!user) {
-      return redirectToClient(res, "/", {
+      return redirectToClient(req, res, "/", {
         error: "session_expired",
       });
     }
@@ -321,14 +321,14 @@ export async function googleConnectCallback(req, res) {
       if (existing.userId.toString() !== user._id.toString()) {
         if (existing.isPrimary) {
 
-          return finishOAuth(res, "/explorer", {
+          return finishOAuth(req, res, "/explorer", {
             error: "linked_as_primary_elsewhere",
             email: profile.email,
           }, decoded.popup === true);
         }
 
 
-        return finishOAuth(res, "/explorer", {
+        return finishOAuth(req, res, "/explorer", {
           error: "already_linked",
           email: profile.email,
         }, decoded.popup === true);
@@ -342,7 +342,7 @@ export async function googleConnectCallback(req, res) {
 
       await existing.save();
 
-      return finishOAuth(res, "/explorer", {
+      return finishOAuth(req, res, "/explorer", {
         connected: existing.isPrimary ? "primary_reconnected" : "updated",
         email: profile.email,
       }, decoded.popup === true);
@@ -361,14 +361,14 @@ export async function googleConnectCallback(req, res) {
     });
 
 
-    return finishOAuth(res, "/explorer", {
+    return finishOAuth(req, res, "/explorer", {
       connected: "success",
       email: profile.email,
     }, decoded.popup === true);
   } catch (error) {
     console.error(error);
 
-    return finishOAuth(res, "/explorer", {
+    return finishOAuth(req, res, "/explorer", {
       error: "connect_failed",
     }, decoded?.popup === true);
   }
