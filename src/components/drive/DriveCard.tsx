@@ -91,13 +91,13 @@ export default function DriveCard({
   return (
     <div
       onClick={onOpen}
-      className="min-w-0 cursor-pointer overflow-hidden rounded-2xl border border-zinc-800 bg-[#252525] p-4 transition-all duration-200 hover:border-[#0E639C] hover:shadow-lg"
+      className="min-w-0 cursor-pointer overflow-hidden rounded-2xl border border-zinc-800 bg-[#252525] p-3 transition-all duration-200 hover:border-[#0E639C] hover:shadow-lg"
     >
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2.5">
+      <div className="flex min-w-0 items-start justify-between gap-1.5">
+        <div className="flex min-w-0 items-center gap-2">
           <div
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0E639C]/20 ${
-              account.picture ? "overflow-hidden" : "p-2.5"
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#0E639C]/20 ${
+              account.picture ? "overflow-hidden" : "p-2"
             }`}
           >
             {account.picture ? (
@@ -108,26 +108,26 @@ export default function DriveCard({
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <HardDrive className="text-[#4DA3FF]" size={22} />
+              <HardDrive className="text-[#4DA3FF]" size={20} />
             )}
           </div>
 
           <div className="min-w-0">
-            <h2 className="flex min-w-0 items-center gap-2 font-semibold text-white">
+            <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-white">
               <span className="min-w-0 truncate">{account.name}</span>
 
               {account.isPrimary && (
                 <span
                   title="Primary account. JoinDrive is signed in with this one."
-                  className="flex shrink-0 items-center gap-1 rounded-full bg-[#0E639C]/25 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#4DA3FF]"
+                  className="flex shrink-0 items-center gap-1 rounded-full bg-[#0E639C]/25 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[#4DA3FF]"
                 >
-                  <Star size={10} />
+                  <Star size={9} />
                   Primary
                 </span>
               )}
             </h2>
 
-            <p className="truncate text-sm text-zinc-400">
+            <p className="truncate text-xs text-zinc-400">
               {account.email}
             </p>
           </div>
@@ -139,14 +139,14 @@ export default function DriveCard({
             e.stopPropagation();
             openMenu();
           }}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition hover:bg-zinc-700 sm:h-auto sm:w-auto sm:p-2"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition hover:bg-zinc-700 sm:h-auto sm:w-auto sm:p-1.5"
         >
-          <MoreVertical size={18} />
+          <MoreVertical size={16} />
         </button>
       </div>
 
-      <div className="mt-4">
-        <div className="mb-2 flex flex-wrap justify-between gap-x-3 gap-y-1 text-sm">
+      <div className="mt-3">
+        <div className="mb-1.5 flex flex-wrap justify-between gap-x-2 gap-y-1 text-xs">
           <span>Storage</span>
 
           <span className="text-zinc-300">
@@ -156,7 +156,7 @@ export default function DriveCard({
           </span>
         </div>
 
-        <div className="h-2 overflow-hidden rounded-full bg-zinc-700">
+        <div className="h-1.5 overflow-hidden rounded-full bg-zinc-700">
           <div
             className={`h-full rounded-full transition-all ${
               isStorageNearlyFull ? "bg-[#b30000]" : "bg-[#0E639C]"
@@ -169,18 +169,18 @@ export default function DriveCard({
       </div>
 
       <div
-        className={`mt-4 flex items-center gap-2 text-sm ${
+        className={`mt-2.5 flex items-center gap-1.5 text-xs ${
           account.connected ? "text-green-400" : "text-amber-400"
         }`}
       >
         {account.connected ? (
           <>
-            <CheckCircle2 size={16} />
+            <CheckCircle2 size={14} />
             Connected
           </>
         ) : (
           <>
-            <AlertTriangle size={16} />
+            <AlertTriangle size={14} />
             Reconnect needed
           </>
         )}

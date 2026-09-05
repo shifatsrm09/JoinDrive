@@ -61,6 +61,34 @@ const EMPTY_MESSAGES: Record<AggregateGridProps["mode"], string> = {
   search: "No files matched your search.",
 };
 
+const AGGREGATE_SKELETON_ITEMS = Array.from(
+  { length: 8 },
+  (_, index) => index
+);
+
+function AggregateCardSkeleton({ actionCount }: { actionCount: number }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="flex min-w-0 animate-pulse items-center gap-2 rounded-xl border border-zinc-800 bg-[#252525] p-3 sm:gap-3 sm:p-4"
+    >
+      <div className="h-10 w-10 shrink-0 rounded-lg bg-zinc-700/70" />
+
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="h-3.5 w-3/4 rounded bg-zinc-700/70" />
+        <div className="h-3 w-5/6 rounded bg-zinc-800" />
+        <div className="h-3 w-1/2 rounded bg-zinc-800" />
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1">
+        {Array.from({ length: actionCount }, (_, index) => (
+          <div key={index} className="h-8 w-8 rounded-lg bg-zinc-800" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function getIcon(file: AggregateFile) {
   const type = file.mimeType;
 
@@ -267,9 +295,6 @@ export default function AggregateGrid({
           : `Removed "${file.name}" from favorites`
       );
 
-      // Unstarring while looking at the Favorites view should drop the
-      // file out of the list immediately rather than waiting on a
-      // manual refresh.
       if (mode === "starred" && !next) {
         setFiles((prev) => prev.filter((item) => item.id !== file.id));
       } else {
@@ -363,8 +388,34 @@ export default function AggregateGrid({
 
   if (loading) {
     return (
-      <main className="flex min-w-0 flex-1 items-center justify-center bg-[#1B1B1B] p-4">
-        <p className="text-zinc-400">Loading...</p>
+      <main
+        role="status"
+        aria-label={`Loading ${title.toLowerCase()}`}
+        className="relative min-w-0 flex-1 overflow-auto bg-[#1B1B1B] p-4 sm:p-6"
+      >
+        <div className="mb-5 flex min-w-0 items-center justify-between gap-3">
+          <h1 className="min-w-0 truncate text-xl font-bold sm:text-2xl">
+            {mode === "search" ? `Results for "${trimmedQuery}"` : title}
+          </h1>
+
+          {mode !== "search" && (
+            <div
+              aria-hidden="true"
+              className="h-8 w-8 animate-pulse rounded-lg bg-zinc-800"
+            />
+          )}
+        </div>
+
+        <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {AGGREGATE_SKELETON_ITEMS.map((item) => (
+            <AggregateCardSkeleton
+              key={item}
+              actionCount={mode === "trash" ? 3 : 2}
+            />
+          ))}
+        </div>
+
+        <span className="sr-only">Loading files...</span>
       </main>
     );
   }

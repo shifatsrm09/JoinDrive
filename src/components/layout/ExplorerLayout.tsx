@@ -10,6 +10,7 @@ import FileGrid from "../file/FileGrid";
 import ExplorerGrid from "../file/ExplorerGrid";
 import AggregateGrid from "../file/AggregateGrid";
 import UploadDialog from "../file/UploadDialog";
+import type { UploadMode } from "../file/UploadDialog";
 
 import type { Clipboard, DriveAccount } from "../../types/drive";
 
@@ -101,7 +102,7 @@ export default function ExplorerLayout() {
     window.matchMedia("(min-width: 1024px)").matches
   );
   const [searchQuery, setSearchQuery] = useState("");
-  const [showUpload, setShowUpload] = useState(false);
+  const [newAction, setNewAction] = useState<UploadMode | null>(null);
 
   const [uploadNonce, setUploadNonce] = useState(0);
 
@@ -341,8 +342,11 @@ export default function ExplorerLayout() {
         <Sidebar
           activeView={sidebarActiveView}
           onNavigateHome={() => runSidebarAction(goHome)}
-          onUpload={() =>
-            runSidebarAction(() => setShowUpload(true))
+          onUploadFiles={() =>
+            runSidebarAction(() => setNewAction("files"))
+          }
+          onUploadFolder={() =>
+            runSidebarAction(() => setNewAction("folder"))
           }
           onSelectRecent={() =>
             runSidebarAction(() => pushEntry({ type: "recent" }))
@@ -358,6 +362,7 @@ export default function ExplorerLayout() {
               openFolderIn(accountId, email, "root", email)
             )
           }
+          storageRefreshKey={`${connected || ""}:${uploadNonce}`}
         />
       </div>
 
@@ -419,9 +424,10 @@ export default function ExplorerLayout() {
         )}
       </div>
 
-      {showUpload && (
+      {newAction && (
         <UploadDialog
-          onClose={() => setShowUpload(false)}
+          mode={newAction}
+          onClose={() => setNewAction(null)}
           onUploaded={handleUploaded}
           initialLocation={
             current.type === "folder"

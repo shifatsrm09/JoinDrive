@@ -169,6 +169,83 @@ function ownerLabel(file: DriveFile) {
   return owner.displayName || owner.emailAddress || "—";
 }
 
+const EXPLORER_SKELETON_ITEMS = Array.from(
+  { length: 10 },
+  (_, index) => index
+);
+
+function ExplorerLoadingSkeleton({ viewMode }: { viewMode: ViewMode }) {
+  return (
+    <main
+      role="status"
+      aria-label="Loading files"
+      className="relative min-w-0 flex-1 overflow-auto bg-[#1B1B1B] p-4 sm:p-6"
+    >
+      <div
+        aria-hidden="true"
+        className="mb-5 flex animate-pulse flex-wrap items-center gap-2"
+      >
+        <div className="h-3 w-12 rounded bg-zinc-800" />
+        <div className="h-8 w-16 rounded-lg bg-zinc-800" />
+        <div className="h-8 w-20 rounded-lg bg-zinc-800" />
+        <div className="h-8 w-14 rounded-lg bg-zinc-800" />
+        <div className="h-8 w-8 rounded-lg bg-zinc-800" />
+        <div className="ml-auto h-8 w-8 rounded-lg bg-zinc-800" />
+        <div className="h-8 w-16 rounded-lg bg-zinc-800" />
+      </div>
+
+      {viewMode === "list" ? (
+        <div
+          aria-hidden="true"
+          className="min-w-0 animate-pulse overflow-hidden rounded-xl border border-zinc-800"
+        >
+          <div className="flex h-9 items-center gap-3 border-b border-zinc-800 bg-[#202020] px-3 sm:gap-4 sm:px-4">
+            <div className="h-3 w-9 shrink-0 rounded bg-zinc-800" />
+            <div className="h-3 w-24 rounded bg-zinc-700/70" />
+            <div className="ml-auto hidden h-3 w-20 rounded bg-zinc-800 sm:block" />
+            <div className="hidden h-3 w-28 rounded bg-zinc-800 sm:block" />
+            <div className="hidden h-3 w-14 rounded bg-zinc-800 sm:block" />
+          </div>
+
+          {EXPLORER_SKELETON_ITEMS.slice(0, 8).map((item) => (
+            <div
+              key={item}
+              className="flex items-center gap-3 border-b border-zinc-800/60 bg-[#252525] px-3 py-2.5 last:border-b-0 sm:gap-4 sm:px-4"
+            >
+              <div className="flex w-9 shrink-0 justify-center">
+                <div className="h-5 w-5 rounded bg-zinc-700/70" />
+              </div>
+              <div className="h-3.5 min-w-0 flex-1 rounded bg-zinc-700/70" />
+              <div className="hidden h-3 w-28 shrink-0 rounded bg-zinc-800 sm:block" />
+              <div className="hidden h-3 w-40 shrink-0 rounded bg-zinc-800 sm:block" />
+              <div className="hidden h-3 w-20 shrink-0 rounded bg-zinc-800 sm:block" />
+              <div className="h-8 w-8 shrink-0 rounded-lg bg-zinc-800 lg:hidden" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div
+          aria-hidden="true"
+          className="grid min-w-0 animate-pulse gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 xl:grid-cols-5"
+        >
+          {EXPLORER_SKELETON_ITEMS.map((item) => (
+            <div
+              key={item}
+              className="rounded-xl border border-zinc-800 bg-[#252525] p-4 sm:p-5"
+            >
+              <div className="mx-auto mb-4 h-11 w-11 rounded-lg bg-zinc-700/70" />
+              <div className="mx-auto h-3.5 w-3/4 rounded bg-zinc-700/70" />
+              <div className="mx-auto mt-2 h-3 w-1/2 rounded bg-zinc-800" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <span className="sr-only">Loading files...</span>
+    </main>
+  );
+}
+
 export default function ExplorerGrid({
   accountId,
   folderId,
@@ -199,7 +276,10 @@ export default function ExplorerGrid({
     window.localStorage.setItem(VIEW_MODE_KEY, mode);
   }
 
-  const reload = useCallback(() => setVersion((v) => v + 1), []);
+  const reload = useCallback(() => {
+    setLoading(true);
+    setVersion((v) => v + 1);
+  }, []);
 
   const notify = useCallback((message: string, isError = false) => {
     setToast(message);
@@ -663,11 +743,7 @@ export default function ExplorerGrid({
   }
 
   if (loading) {
-    return (
-      <main className="flex min-w-0 flex-1 items-center justify-center p-4">
-        <p className="text-zinc-400">Loading files...</p>
-      </main>
-    );
+    return <ExplorerLoadingSkeleton viewMode={viewMode} />;
   }
 
   if (error) {

@@ -26,7 +26,10 @@ export type UploadLocation = {
   folderName: string;
 };
 
+export type UploadMode = "files" | "folder";
+
 type UploadDialogProps = {
+  mode: UploadMode;
   onClose: () => void;
   onUploaded: (
     accountId: string,
@@ -65,6 +68,7 @@ function formatSize(bytes: number) {
 }
 
 export default function UploadDialog({
+  mode,
   onClose,
   onUploaded,
   initialLocation,
@@ -108,9 +112,16 @@ export default function UploadDialog({
 
   const [items, setItems] = useState<UploadItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const uploadControllerRef = useRef<AbortController | null>(null);
 
+  const dialogTitle =
+    mode === "folder" ? "Upload folder to Drive" : "Upload files to Drive";
+
   useEffect(() => {
+    folderInputRef.current?.setAttribute("webkitdirectory", "");
+    folderInputRef.current?.setAttribute("directory", "");
+
     return () => uploadControllerRef.current?.abort();
   }, []);
 
@@ -189,6 +200,7 @@ export default function UploadDialog({
 
       setLoadingFolders(true);
       setPath((prev) => [...prev, { id: res.file.id, name: res.file.name }]);
+      setNewFolderName("New Folder");
       setCreatingFolder(false);
     } catch (err: unknown) {
       setCreatingFolderError(
@@ -203,7 +215,22 @@ export default function UploadDialog({
     fileInputRef.current?.click();
   }
 
-  function handleFilesSelected(fileList: FileList | null) {
+  function openFolderPicker() {
+    folderInputRef.current?.click();
+  }
+
+  function openSelectedPicker() {
+    if (mode === "folder") {
+      openFolderPicker();
+    } else {
+      openFilePicker();
+    }
+  }
+
+  function handleFilesSelected(
+    fileList: FileList | null,
+    uploadMode: "files" | "folder"
+  ) {
     if (!fileList || fileList.length === 0) {
       return;
     }
@@ -221,10 +248,53 @@ export default function UploadDialog({
     uploadControllerRef.current = controller;
     setItems(chosen);
     setStep("uploading");
-    void runUploads(chosen, controller);
+    void runUploads(chosen, controller, uploadMode);
   }
 
-  async function runUploads(list: UploadItem[], controller: AbortController) {
+  async function ensureUploadFolder(
+    file: File,
+    folderIds: Map<string, string>,
+    controller: AbortController
+  ) {
+    const parts = (file.webkitRelativePath || file.name)
+      .split("/")
+      .filter(Boolean)
+      .slice(0, -1);
+    let parentId = currentFolder.id;
+    let relativePath = "";
+
+    for (const folderName of parts) {
+      if (controller.signal.aborted) {
+        throw new Error("Upload cancelled");
+      }
+
+      relativePath = relativePath
+        ? `${relativePath}/${folderName}`
+        : folderName;
+
+      const existingId = folderIds.get(relativePath);
+
+      if (existingId) {
+        parentId = existingId;
+        continue;
+      }
+
+      const res = await createFolder(accountId, parentId, folderName);
+
+      folderIds.set(relativePath, res.file.id);
+      parentId = res.file.id;
+    }
+
+    return parentId;
+  }
+
+  async function runUploads(
+    list: UploadItem[],
+    controller: AbortController,
+    uploadMode: "files" | "folder"
+  ) {
+    const folderIds = new Map<string, string>();
+
     try {
       for (let i = 0; i < list.length; i++) {
         if (controller.signal.aborted) {
@@ -240,11 +310,20 @@ export default function UploadDialog({
         );
 
         try {
+          const destinationFolderId =
+            uploadMode === "folder"
+              ? await ensureUploadFolder(list[i].file, folderIds, controller)
+              : currentFolder.id;
+
+          if (controller.signal.aborted) {
+            return;
+          }
+
           let sampledAt = performance.now();
           let sampledBytes = 0;
           let displayedSpeed = 0;
 
-          await uploadFile(accountId, currentFolder.id, list[i].file, {
+          await uploadFile(accountId, destinationFolderId, list[i].file, {
             signal: controller.signal,
             onProgress: (uploaded, total) => {
               const progress =
@@ -327,19 +406,26 @@ export default function UploadDialog({
   }
 
   return (
-    <Modal title="Upload to Drive" onClose={closeDialog}>
+    <Modal title={dialogTitle} onClose={closeDialog}>
       <input
         ref={fileInputRef}
         type="file"
         multiple
         className="hidden"
-        onChange={(event) => handleFilesSelected(event.target.files)}
+        onChange={(event) => handleFilesSelected(event.target.files, "files")}
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(event) => handleFilesSelected(event.target.files, "folder")}
       />
 
       {step === "account" && (
         <div className="space-y-3">
           <p className="text-sm text-zinc-400">
-            Choose which connected Drive to upload to.
+            Choose which connected Drive to use.
           </p>
 
           <div className="max-h-72 space-y-1 overflow-y-auto">
@@ -384,11 +470,11 @@ export default function UploadDialog({
             </button>
 
             <button
-              onClick={openFilePicker}
+              onClick={openSelectedPicker}
               className="flex min-h-11 items-center gap-2 rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8]"
             >
               <FolderOpen size={16} />
-              Choose files
+              {mode === "folder" ? "Choose folder" : "Choose files"}
             </button>
           </div>
         </div>
@@ -525,11 +611,11 @@ export default function UploadDialog({
             </button>
 
             <button
-              onClick={openFilePicker}
+              onClick={openSelectedPicker}
               className="flex min-h-11 items-center gap-2 rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8]"
             >
               <FolderOpen size={16} />
-              Choose files here
+              {mode === "folder" ? "Choose folder here" : "Choose files here"}
             </button>
           </div>
         </div>
@@ -569,7 +655,9 @@ export default function UploadDialog({
                 )}
 
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm">{item.file.name}</p>
+                  <p className="truncate text-sm">
+                    {item.file.webkitRelativePath || item.file.name}
+                  </p>
                   {item.error ? (
                     <p className="truncate text-xs text-zinc-500">
                       {item.error}
