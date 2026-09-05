@@ -1,5 +1,15 @@
 import { API_BASE_URL } from "./config";
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export async function apiFetch<T>(
   endpoint: string,
   options?: RequestInit
@@ -24,7 +34,7 @@ export async function apiFetch<T>(
       message = raw || "Request failed";
     }
 
-    throw new Error(message || "Request failed");
+    throw new ApiError(message || "Request failed", response.status);
   }
 
   return response.json();

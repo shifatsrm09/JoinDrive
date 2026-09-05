@@ -45,8 +45,11 @@ type UploadItem = {
   status: "pending" | "uploading" | "done" | "error";
   progress: number;
   speed: number;
+  detail?: string;
   error?: string;
 };
+
+const MAX_CONCURRENT_UPLOADS = 3;
 
 function formatSize(bytes: number) {
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -249,19 +252,19 @@ export default function UploadDialog({
 
   async function ensureUploadFolder(
     file: File,
-    folderIds: Map<string, string>,
+    folderIds: Map<string, Promise<string>>,
     controller: AbortController
   ) {
     const parts = (file.webkitRelativePath || file.name)
       .split("/")
       .filter(Boolean)
       .slice(0, -1);
-    let parentId = currentFolder.id;
+    let parentId = Promise.resolve(currentFolder.id);
     let relativePath = "";
 
     for (const folderName of parts) {
       if (controller.signal.aborted) {
-        throw new Error("Upload cancelled");
+        throw new DOMException("Upload cancelled", "AbortError");
       }
 
       relativePath = relativePath
@@ -275,10 +278,24 @@ export default function UploadDialog({
         continue;
       }
 
-      const res = await createFolder(accountId, parentId, folderName);
+      const parentFolderId = parentId;
+      const folderId = parentFolderId.then(async (resolvedParentId) => {
+        if (controller.signal.aborted) {
+          throw new DOMException("Upload cancelled", "AbortError");
+        }
 
-      folderIds.set(relativePath, res.file.id);
-      parentId = res.file.id;
+        const res = await createFolder(
+          accountId,
+          resolvedParentId,
+          folderName,
+          controller.signal
+        );
+
+        return res.file.id;
+      });
+
+      folderIds.set(relativePath, folderId);
+      parentId = folderId;
     }
 
     return parentId;
@@ -289,76 +306,20 @@ export default function UploadDialog({
     controller: AbortController,
     uploadMode: "files" | "folder"
   ) {
-    const folderIds = new Map<string, string>();
+    const folderIds = new Map<string, Promise<string>>();
     let successfulUploads = 0;
+    let nextIndex = 0;
 
     try {
-      for (let i = 0; i < list.length; i++) {
-        if (controller.signal.aborted) {
-          return;
-        }
+      async function uploadNext() {
+        while (!controller.signal.aborted) {
+          const i = nextIndex;
+          nextIndex += 1;
 
-        setItems((prev) =>
-          prev.map((item, index) =>
-            index === i
-              ? { ...item, status: "uploading", progress: 0, speed: 0 }
-              : item
-          )
-        );
-
-        try {
-          const destinationFolderId =
-            uploadMode === "folder"
-              ? await ensureUploadFolder(list[i].file, folderIds, controller)
-              : currentFolder.id;
-
-          if (controller.signal.aborted) {
+          if (i >= list.length) {
             return;
           }
 
-          let sampledAt = performance.now();
-          let sampledBytes = 0;
-          let displayedSpeed = 0;
-
-          await uploadFile(accountId, destinationFolderId, list[i].file, {
-            signal: controller.signal,
-            onProgress: (uploaded, total) => {
-              const progress =
-                total > 0 ? Math.round((uploaded / total) * 100) : 0;
-              const now = performance.now();
-              const elapsedSeconds = (now - sampledAt) / 1000;
-
-              if (elapsedSeconds >= 0.4 || uploaded === total) {
-                const currentSpeed =
-                  (uploaded - sampledBytes) / elapsedSeconds / (1024 * 1024);
-
-                displayedSpeed =
-                  displayedSpeed > 0
-                    ? displayedSpeed * 0.65 + currentSpeed * 0.35
-                    : currentSpeed;
-                sampledAt = now;
-                sampledBytes = uploaded;
-              }
-
-              setItems((prev) =>
-                prev.map((item, index) =>
-                  index === i
-                    ? { ...item, progress, speed: displayedSpeed }
-                    : item
-                )
-              );
-            },
-          });
-
-          setItems((prev) =>
-            prev.map((item, index) =>
-              index === i
-                ? { ...item, status: "done", progress: 100, speed: 0 }
-                : item
-            )
-          );
-          successfulUploads += 1;
-        } catch (err: unknown) {
           if (controller.signal.aborted) {
             return;
           }
@@ -368,15 +329,153 @@ export default function UploadDialog({
               index === i
                 ? {
                     ...item,
-                    status: "error",
-                    error:
-                      err instanceof Error ? err.message : "Upload failed",
+                    status: "uploading",
+                    progress: 0,
+                    speed: 0,
+                    detail: undefined,
+                    error: undefined,
                   }
                 : item
             )
           );
+
+          try {
+            const destinationFolderId =
+              uploadMode === "folder"
+                ? await ensureUploadFolder(list[i].file, folderIds, controller)
+                : currentFolder.id;
+
+            if (controller.signal.aborted) {
+              return;
+            }
+
+            let sampledAt = performance.now();
+            let sampledBytes = 0;
+            let displayedSpeed = 0;
+            let lastUploaded = 0;
+            let renderedAt = 0;
+
+            await uploadFile(accountId, destinationFolderId, list[i].file, {
+              signal: controller.signal,
+              singleRequest: list.length === 1,
+              onProgress: (uploaded, total) => {
+                const progress =
+                  total > 0
+                    ? uploaded >= total
+                      ? 100
+                      : Math.min(99, Math.round((uploaded / total) * 100))
+                    : 0;
+                const now = performance.now();
+
+                if (uploaded < sampledBytes) {
+                  sampledAt = now;
+                  sampledBytes = uploaded;
+                  displayedSpeed = 0;
+                }
+
+                const elapsedSeconds = (now - sampledAt) / 1000;
+
+                if (
+                  elapsedSeconds > 0 &&
+                  (elapsedSeconds >= 0.4 || uploaded === total)
+                ) {
+                  const currentSpeed =
+                    Math.max(0, uploaded - sampledBytes) /
+                    elapsedSeconds /
+                    (1024 * 1024);
+
+                  displayedSpeed =
+                    displayedSpeed > 0
+                      ? displayedSpeed * 0.65 + currentSpeed * 0.35
+                      : currentSpeed;
+                  sampledAt = now;
+                  sampledBytes = uploaded;
+                }
+
+                lastUploaded = uploaded;
+
+                if (uploaded < total && now - renderedAt < 200) {
+                  return;
+                }
+
+                renderedAt = now;
+                setItems((prev) =>
+                  prev.map((item, index) =>
+                    index === i
+                      ? {
+                          ...item,
+                          progress,
+                          speed: displayedSpeed,
+                          detail: undefined,
+                        }
+                      : item
+                  )
+                );
+              },
+              onRetry: (_attempt, delayMs, reason) => {
+                sampledAt = performance.now();
+                sampledBytes = lastUploaded;
+                displayedSpeed = 0;
+
+                setItems((prev) =>
+                  prev.map((item, index) =>
+                    index === i
+                      ? {
+                          ...item,
+                          speed: 0,
+                          detail: `${reason} · retrying in ${Math.max(
+                            1,
+                            Math.ceil(delayMs / 1000)
+                          )}s`,
+                        }
+                      : item
+                  )
+                );
+              },
+            });
+
+            setItems((prev) =>
+              prev.map((item, index) =>
+                index === i
+                  ? {
+                      ...item,
+                      status: "done",
+                      progress: 100,
+                      speed: 0,
+                      detail: undefined,
+                    }
+                  : item
+              )
+            );
+            successfulUploads += 1;
+          } catch (err: unknown) {
+            if (controller.signal.aborted) {
+              return;
+            }
+
+            setItems((prev) =>
+              prev.map((item, index) =>
+                index === i
+                  ? {
+                      ...item,
+                      status: "error",
+                      speed: 0,
+                      detail: undefined,
+                      error:
+                        err instanceof Error ? err.message : "Upload failed",
+                    }
+                  : item
+              )
+            );
+          }
         }
       }
+
+      const workerCount = Math.min(MAX_CONCURRENT_UPLOADS, list.length);
+
+      await Promise.all(
+        Array.from({ length: workerCount }, () => uploadNext())
+      );
     } finally {
       if (uploadControllerRef.current === controller) {
         uploadControllerRef.current = null;
@@ -465,21 +564,29 @@ export default function UploadDialog({
                       {item.error}
                     </p>
                   ) : (
-                    <div className="flex min-w-0 items-center gap-2 text-[11px] text-zinc-500">
-                      <span className="min-w-0 truncate">
-                        {formatSize(item.file.size)}
-                        {item.status === "uploading"
-                          ? ` · ${item.progress}%`
-                          : ""}
-                      </span>
-
-                      {item.status === "uploading" && (
-                        <span className="ml-auto flex shrink-0 items-center gap-1 text-[#4DA3FF]">
-                          <Gauge size={12} />
-                          {item.speed.toFixed(1)} MB/s
+                    <>
+                      <div className="flex min-w-0 items-center gap-2 text-[11px] text-zinc-500">
+                        <span className="min-w-0 truncate">
+                          {formatSize(item.file.size)}
+                          {item.status === "uploading"
+                            ? ` · ${item.progress}%`
+                            : ""}
                         </span>
+
+                        {item.status === "uploading" && (
+                          <span className="ml-auto flex shrink-0 items-center gap-1 text-[#4DA3FF]">
+                            <Gauge size={12} />
+                            {item.speed.toFixed(1)} MB/s
+                          </span>
+                        )}
+                      </div>
+
+                      {item.detail && (
+                        <p className="truncate text-[11px] text-zinc-400">
+                          {item.detail}
+                        </p>
                       )}
-                    </div>
+                    </>
                   )}
 
                   {item.status === "uploading" && (
