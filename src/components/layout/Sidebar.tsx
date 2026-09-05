@@ -42,6 +42,7 @@ type SidebarProps = {
   onSelectTrash: () => void;
   onSelectAccount: (accountId: string, email: string) => void;
   storageRefreshKey?: string;
+  uploadsDisabled?: boolean;
 };
 
 const STORAGE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"];
@@ -70,6 +71,7 @@ export default function Sidebar({
   onSelectTrash,
   onSelectAccount,
   storageRefreshKey,
+  uploadsDisabled = false,
 }: SidebarProps) {
   const { user } = useAuth();
   const newButtonRef = useRef<HTMLButtonElement>(null);
@@ -207,8 +209,9 @@ export default function Sidebar({
           type="button"
           aria-haspopup="menu"
           aria-expanded={!!newMenu}
+          disabled={uploadsDisabled}
           onClick={toggleNewMenu}
-          className="mb-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-transparent px-3 py-2.5 text-sm font-medium text-zinc-100 transition hover:border-zinc-600 hover:bg-zinc-800/70 lg:min-h-0"
+          className="mb-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-transparent px-3 py-2.5 text-sm font-medium text-zinc-100 transition hover:border-zinc-600 hover:bg-zinc-800/70 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-zinc-700 disabled:hover:bg-transparent lg:min-h-0"
         >
           <Plus size={18} />
           New

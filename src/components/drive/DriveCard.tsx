@@ -133,16 +133,18 @@ export default function DriveCard({
           </div>
         </div>
 
-        <button
-          ref={menuButtonRef}
-          onClick={(e) => {
-            e.stopPropagation();
-            openMenu();
-          }}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition hover:bg-zinc-700 sm:h-auto sm:w-auto sm:p-1.5"
-        >
-          <MoreVertical size={16} />
-        </button>
+        {!account.isPrimary && (
+          <button
+            ref={menuButtonRef}
+            onClick={(e) => {
+              e.stopPropagation();
+              openMenu();
+            }}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition hover:bg-zinc-700 sm:h-auto sm:w-auto sm:p-1.5"
+          >
+            <MoreVertical size={16} />
+          </button>
+        )}
       </div>
 
       <div className="mt-3">
@@ -186,7 +188,7 @@ export default function DriveCard({
         )}
       </div>
 
-      {menuPos && (
+      {!account.isPrimary && menuPos && (
         <div onClick={(e) => e.stopPropagation()}>
           <ContextMenu
             x={menuPos.x}
@@ -197,17 +199,13 @@ export default function DriveCard({
         </div>
       )}
 
-      {confirming && (
+      {!account.isPrimary && confirming && (
         <div onClick={(e) => e.stopPropagation()}>
           <ConfirmDialog
             title="Disconnect this Drive"
             message={
               error ||
-              `"${account.email}" will be removed from JoinDrive. Your files stay in Google Drive untouched, and you can reconnect this account at any time.${
-                account.isPrimary
-                  ? " This is your primary account: you'll sign back in with a different connected Drive next time."
-                  : ""
-              }`
+              `"${account.email}" will be removed from JoinDrive. Your files stay in Google Drive untouched, and you can reconnect this account at any time.`
             }
             confirmLabel="Disconnect"
             danger

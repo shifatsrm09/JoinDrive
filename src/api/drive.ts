@@ -17,6 +17,7 @@ export interface DriveFilesResponse {
   accountId: string | null;
   currentFolder: string;
   files: DriveFile[];
+  nextPageToken: string | null;
 }
 
 export interface DriveFileResponse {
@@ -53,8 +54,10 @@ export interface ShareResponse {
   };
 }
 
-export function getAccounts() {
-  return apiFetch<DriveAccountsResponse>("/drive/accounts");
+export function getAccounts(refreshStorage = false) {
+  return apiFetch<DriveAccountsResponse>(
+    `/drive/accounts${refreshStorage ? "?refreshStorage=true" : ""}`
+  );
 }
 
 export function disconnectAccount(accountId: string) {
@@ -74,11 +77,23 @@ export function getDriveInfo(accountId?: string) {
   return apiFetch<DriveInfoResponse>(scoped(accountId, "/info"));
 }
 
-export function getFiles(folderId = "root", accountId?: string) {
+export function getFiles(
+  folderId = "root",
+  accountId?: string,
+  pageToken?: string,
+  pageSize = 50
+) {
+  const params = new URLSearchParams({
+    folderId,
+    pageSize: String(pageSize),
+  });
+
+  if (pageToken) {
+    params.set("pageToken", pageToken);
+  }
+
   return apiFetch<DriveFilesResponse>(
-    `${scoped(accountId, "/files")}?folderId=${encodeURIComponent(
-      folderId
-    )}`
+    `${scoped(accountId, "/files")}?${params.toString()}`
   );
 }
 
@@ -141,7 +156,6 @@ export function restoreFile(accountId: string, fileId: string) {
   );
 }
 
-/** Toggles a file's starred (favorite) state. */
 export function setStarred(
   accountId: string,
   fileId: string,

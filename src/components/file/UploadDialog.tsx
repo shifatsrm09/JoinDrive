@@ -10,6 +10,7 @@ import {
   HardDrive,
   Loader2,
   UploadCloud,
+  X,
   XCircle,
 } from "lucide-react";
 
@@ -31,12 +32,7 @@ export type UploadMode = "files" | "folder";
 type UploadDialogProps = {
   mode: UploadMode;
   onClose: () => void;
-  onUploaded: (
-    accountId: string,
-    accountLabel: string,
-    folderId: string,
-    folderName: string
-  ) => void;
+  onUploaded: (accountId: string, folderId: string) => void;
   initialLocation?: UploadLocation;
 };
 
@@ -132,7 +128,7 @@ export default function UploadDialog({
 
     let cancelled = false;
 
-    getFiles(currentFolder.id, accountId)
+    getFiles(currentFolder.id, accountId, undefined, 200)
       .then((res) => {
         if (!cancelled) {
           setFolders((res.files || []).filter(isFolder));
@@ -294,6 +290,7 @@ export default function UploadDialog({
     uploadMode: "files" | "folder"
   ) {
     const folderIds = new Map<string, string>();
+    let successfulUploads = 0;
 
     try {
       for (let i = 0; i < list.length; i++) {
@@ -360,6 +357,7 @@ export default function UploadDialog({
                 : item
             )
           );
+          successfulUploads += 1;
         } catch (err: unknown) {
           if (controller.signal.aborted) {
             return;
@@ -383,6 +381,10 @@ export default function UploadDialog({
       if (uploadControllerRef.current === controller) {
         uploadControllerRef.current = null;
       }
+
+      if (successfulUploads > 0) {
+        onUploaded(accountId, currentFolder.id);
+      }
     }
   }
 
@@ -393,16 +395,124 @@ export default function UploadDialog({
   const successCount = items.filter((item) => item.status === "done").length;
 
   function finish() {
-    if (successCount > 0) {
-      onUploaded(accountId, accountLabel, currentFolder.id, currentFolder.name);
-    }
-
     onClose();
   }
 
   function closeDialog() {
     uploadControllerRef.current?.abort();
     onClose();
+  }
+
+  if (step === "uploading") {
+    return (
+      <section
+        role="dialog"
+        aria-label="Upload progress"
+        className="fixed bottom-3 right-3 z-50 flex max-h-[min(32rem,calc(100dvh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-[360px] flex-col overflow-hidden rounded-xl border border-zinc-700 bg-[#252525] shadow-2xl sm:bottom-4 sm:right-4"
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-zinc-700 px-3 py-2.5">
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-white">
+              {allSettled ? "Upload complete" : "Uploading to Drive"}
+            </h2>
+            <p className="truncate text-xs text-zinc-500">
+              {currentFolder?.name} · {accountLabel}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            aria-label={allSettled ? "Close upload" : "Cancel upload"}
+            onClick={allSettled ? finish : closeDialog}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-700 hover:text-white"
+          >
+            <X size={17} />
+          </button>
+        </div>
+
+        <div className="min-h-0 overflow-y-auto p-3">
+          <div className="max-h-52 space-y-1.5 overflow-y-auto">
+            {items.map((item, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-2.5 rounded-lg border border-zinc-800 bg-[#1B1B1B] px-2.5 py-2"
+              >
+                {item.status === "uploading" && (
+                  <Loader2
+                    size={15}
+                    className="shrink-0 animate-spin text-[#4DA3FF]"
+                  />
+                )}
+                {item.status === "pending" && (
+                  <UploadCloud size={15} className="shrink-0 text-zinc-500" />
+                )}
+                {item.status === "done" && (
+                  <CheckCircle2
+                    size={15}
+                    className="shrink-0 text-green-400"
+                  />
+                )}
+                {item.status === "error" && (
+                  <XCircle size={15} className="shrink-0 text-red-400" />
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs text-zinc-200">
+                    {item.file.webkitRelativePath || item.file.name}
+                  </p>
+                  {item.error ? (
+                    <p className="truncate text-[11px] text-zinc-500">
+                      {item.error}
+                    </p>
+                  ) : (
+                    <div className="flex min-w-0 items-center gap-2 text-[11px] text-zinc-500">
+                      <span className="min-w-0 truncate">
+                        {formatSize(item.file.size)}
+                        {item.status === "uploading"
+                          ? ` · ${item.progress}%`
+                          : ""}
+                      </span>
+
+                      {item.status === "uploading" && (
+                        <span className="ml-auto flex shrink-0 items-center gap-1 text-[#4DA3FF]">
+                          <Gauge size={12} />
+                          {item.speed.toFixed(1)} MB/s
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {item.status === "uploading" && (
+                    <div className="mt-1 h-1 overflow-hidden rounded-full bg-zinc-700">
+                      <div
+                        className="h-full rounded-full bg-[#0E639C] transition-[width]"
+                        style={{ width: `${item.progress}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={allSettled ? finish : closeDialog}
+              className={`min-h-10 rounded-lg px-3 py-2 text-xs font-medium transition ${
+                allSettled
+                  ? "bg-[#0E639C] text-white hover:bg-[#1177b8]"
+                  : "text-zinc-300 hover:bg-zinc-700"
+              }`}
+            >
+              {allSettled
+                ? `Done (${successCount}/${items.length})`
+                : "Cancel upload"}
+            </button>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -621,94 +731,6 @@ export default function UploadDialog({
         </div>
       )}
 
-      {step === "uploading" && (
-        <div className="space-y-3">
-          <p className="break-words text-sm text-zinc-400">
-            Uploading to{" "}
-            <span className="text-zinc-200">{currentFolder?.name}</span>{" "}
-            in {accountLabel}
-          </p>
-
-          <div className="max-h-64 space-y-1.5 overflow-y-auto">
-            {items.map((item, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-2.5 rounded-lg border border-zinc-800 bg-[#1B1B1B] px-3 py-2"
-              >
-                {item.status === "uploading" && (
-                  <Loader2
-                    size={16}
-                    className="shrink-0 animate-spin text-[#4DA3FF]"
-                  />
-                )}
-                {item.status === "pending" && (
-                  <UploadCloud size={16} className="shrink-0 text-zinc-500" />
-                )}
-                {item.status === "done" && (
-                  <CheckCircle2
-                    size={16}
-                    className="shrink-0 text-green-400"
-                  />
-                )}
-                {item.status === "error" && (
-                  <XCircle size={16} className="shrink-0 text-red-400" />
-                )}
-
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm">
-                    {item.file.webkitRelativePath || item.file.name}
-                  </p>
-                  {item.error ? (
-                    <p className="truncate text-xs text-zinc-500">
-                      {item.error}
-                    </p>
-                  ) : (
-                    <div className="flex min-w-0 items-center gap-2 text-xs text-zinc-500">
-                      <span className="min-w-0 truncate">
-                        {formatSize(item.file.size)}
-                        {item.status === "uploading"
-                          ? ` · ${item.progress}%`
-                          : ""}
-                      </span>
-
-                      {item.status === "uploading" && (
-                        <span className="ml-auto flex shrink-0 items-center gap-1 text-[#4DA3FF]">
-                          <Gauge size={13} />
-                          {item.speed.toFixed(1)} MB/s
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {item.status === "uploading" && (
-                    <div className="mt-1 h-1 overflow-hidden rounded-full bg-zinc-700">
-                      <div
-                        className="h-full rounded-full bg-[#0E639C] transition-[width]"
-                        style={{ width: `${item.progress}%` }}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap justify-end gap-2 pt-1">
-            <button
-              onClick={allSettled ? finish : closeDialog}
-              className={`min-h-11 rounded-lg px-4 py-2 text-sm font-medium transition ${
-                allSettled
-                  ? "bg-[#0E639C] text-white hover:bg-[#1177b8]"
-                  : "text-zinc-300 hover:bg-zinc-700"
-              }`}
-            >
-              {allSettled
-                ? `Done (${successCount}/${items.length} uploaded)`
-                : "Cancel"}
-            </button>
-          </div>
-        </div>
-      )}
     </Modal>
   );
 }

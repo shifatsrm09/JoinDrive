@@ -32,6 +32,9 @@ const EXPORT_FORMATS = {
 
 export const FOLDER_MIME = "application/vnd.google-apps.folder";
 
+const STORAGE_CACHE_TTL = 60_000;
+const storageCache = new Map();
+
 
 function escapeQueryValue(value) {
   return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
@@ -69,12 +72,33 @@ async function resolveAccount(userId, accountId) {
 }
 
 async function getDriveClient(account) {
-  const auth = await getAuthenticatedClient(account._id);
+  const auth = await getAuthenticatedClient(account);
 
   return google.drive({
     version: "v3",
     auth,
   });
+}
+
+async function storageForAccount(account, force = false) {
+  const key = String(account._id);
+  const cached = storageCache.get(key);
+
+  if (!force && cached && Date.now() - cached.updatedAt < STORAGE_CACHE_TTL) {
+    return cached.storage;
+  }
+
+  const drive = await getDriveClient(account);
+  const { data } = await drive.about.get({
+    fields: "storageQuota",
+  });
+
+  storageCache.set(key, {
+    storage: data.storageQuota,
+    updatedAt: Date.now(),
+  });
+
+  return data.storageQuota;
 }
 
 async function driveFor(userId, accountId) {
@@ -96,7 +120,7 @@ function serializeAccount(account, storage, connected) {
   };
 }
 
-export async function getAccounts(userId) {
+export async function getAccounts(userId, forceStorageRefresh = false) {
   const accounts = await GoogleAccount.find({ userId }).sort({
     isPrimary: -1,
     createdAt: 1,
@@ -104,13 +128,7 @@ export async function getAccounts(userId) {
 
   const results = await Promise.allSettled(
     accounts.map(async (account) => {
-      const drive = await getDriveClient(account);
-
-      const { data } = await drive.about.get({
-        fields: "storageQuota",
-      });
-
-      return data.storageQuota;
+      return storageForAccount(account, forceStorageRefresh);
     })
   );
 
@@ -131,38 +149,39 @@ export async function getAccounts(userId) {
 }
 
 export async function getStorageInfo(userId, accountId) {
-  const drive = await driveFor(userId, accountId);
+  const account = await resolveAccount(userId, accountId);
 
-  const { data } = await drive.about.get({
-    fields: "storageQuota",
-  });
-
-  return data.storageQuota;
+  return storageForAccount(account);
 }
 
 export async function getDriveInfo(userId, accountId) {
   const account = await resolveAccount(userId, accountId);
+  const storage = await storageForAccount(account);
 
-  const drive = await getDriveClient(account);
-
-  const { data } = await drive.about.get({
-    fields: "storageQuota",
-  });
-
-  return serializeAccount(account, data.storageQuota, true);
+  return serializeAccount(account, storage, true);
 }
 
-export async function listFiles(userId, accountId, folderId = "root") {
+export async function listFiles(
+  userId,
+  accountId,
+  folderId = "root",
+  pageToken,
+  pageSize = 50
+) {
   const drive = await driveFor(userId, accountId);
 
   const { data } = await drive.files.list({
     q: `'${escapeQueryValue(folderId)}' in parents and trashed=false`,
-    fields: `files(${FILE_FIELDS})`,
+    fields: `nextPageToken,files(${FILE_FIELDS})`,
     orderBy: "folder,name",
-    pageSize: 200,
+    pageSize,
+    pageToken: pageToken || undefined,
   });
 
-  return data.files;
+  return {
+    files: data.files || [],
+    nextPageToken: data.nextPageToken || null,
+  };
 }
 
 export async function getFile(userId, accountId, fileId) {
@@ -189,6 +208,8 @@ export async function disconnectAccount(userId, accountId) {
   if (!account) {
     throw new Error("Google account not found");
   }
+
+  storageCache.delete(String(account._id));
 
   return { id: account._id, email: account.email };
 }
@@ -286,7 +307,6 @@ export async function restoreFile(userId, accountId, fileId) {
   return data;
 }
 
-//Toggles a file's starred (favorite) state. 
 export async function setStarred(userId, accountId, fileId, starred) {
   const drive = await driveFor(userId, accountId);
 
@@ -548,7 +568,7 @@ export async function createUploadSession(
   }
 
   const account = await resolveAccount(userId, accountId);
-  const auth = await getAuthenticatedClient(account._id);
+  const auth = await getAuthenticatedClient(account);
   const drive = google.drive({ version: "v3", auth });
   const { data: generatedIds } = await drive.files.generateIds({
     count: 1,

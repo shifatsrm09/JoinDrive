@@ -11,6 +11,7 @@ import ExplorerGrid from "../file/ExplorerGrid";
 import AggregateGrid from "../file/AggregateGrid";
 import UploadDialog from "../file/UploadDialog";
 import type { UploadMode } from "../file/UploadDialog";
+import { invalidateFolderContents } from "../../hooks/useFolderContents";
 
 import type { Clipboard, DriveAccount } from "../../types/drive";
 
@@ -288,14 +289,9 @@ export default function ExplorerLayout() {
     });
   }
 
-  function handleUploaded(
-    accountId: string,
-    accountLabel: string,
-    folderId: string,
-    folderName: string
-  ) {
+  function handleUploaded(accountId: string, folderId: string) {
+    invalidateFolderContents(accountId, folderId);
     setUploadNonce((n) => n + 1);
-    openFolderIn(accountId, accountLabel, folderId, folderName);
   }
 
   function goHome() {
@@ -363,6 +359,7 @@ export default function ExplorerLayout() {
             )
           }
           storageRefreshKey={`${connected || ""}:${uploadNonce}`}
+          uploadsDisabled={newAction !== null}
         />
       </div>
 

@@ -2,8 +2,10 @@ import { createLoginClient } from "../config/google.js";
 import GoogleAccount from "../models/GoogleAccount.js";
 
 
-export async function getAuthenticatedClient(accountId) {
-  const account = await GoogleAccount.findById(accountId);
+export async function getAuthenticatedClient(accountOrId) {
+  const account = accountOrId?.accessToken
+    ? accountOrId
+    : await GoogleAccount.findById(accountOrId);
 
   if (!account) {
     throw new Error("Google account not found");
@@ -17,7 +19,6 @@ export async function getAuthenticatedClient(accountId) {
     expiry_date: account.expiryDate,
   });
 
-  // Persist tokens that the library refreshes on its own.
   client.on("tokens", async (tokens) => {
     try {
       if (tokens.access_token) {

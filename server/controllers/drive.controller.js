@@ -73,7 +73,10 @@ function fail(res, error) {
 
 export async function listAccounts(req, res) {
   try {
-    const accounts = await getAccounts(req.user._id);
+    const accounts = await getAccounts(
+      req.user._id,
+      req.query.refreshStorage === "true"
+    );
 
     return res.json({
       success: true,
@@ -134,18 +137,23 @@ export async function getInfo(req, res) {
 export async function getFiles(req, res) {
   try {
     const folderId = req.query.folderId || "root";
+    const requestedPageSize = Math.floor(Number(req.query.pageSize) || 50);
+    const pageSize = Math.min(Math.max(requestedPageSize, 10), 200);
 
-    const files = await listFiles(
+    const result = await listFiles(
       req.user._id,
       accountIdFrom(req),
-      folderId
+      folderId,
+      req.query.pageToken,
+      pageSize
     );
 
     return res.json({
       success: true,
       accountId: accountIdFrom(req),
       currentFolder: folderId,
-      files,
+      files: result.files,
+      nextPageToken: result.nextPageToken,
     });
   } catch (error) {
     return fail(res, error);
@@ -276,7 +284,6 @@ export async function restore(req, res) {
   }
 }
 
-//Toggles a file's starred (favorite) state.
 export async function star(req, res) {
   try {
     const file = await setStarred(
@@ -296,7 +303,6 @@ export async function star(req, res) {
   }
 }
 
-// Permanently deletes a file, bypassing the trash entirely.
 export async function destroy(req, res) {
   try {
     await permanentlyDeleteFile(
@@ -314,7 +320,6 @@ export async function destroy(req, res) {
   }
 }
 
-/** Empties the trash across every linked account. */
 export async function emptyTrash(req, res) {
   try {
     const result = await emptyAllTrash(req.user._id);

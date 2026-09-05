@@ -41,7 +41,6 @@ import {
   createFolder,
   deleteFile,
   downloadUrl,
-  getFiles,
   moveFile,
   renameFile,
   setStarred,
@@ -54,6 +53,7 @@ import type {
   SortDirection,
   SortKey,
 } from "../../types/drive";
+import useFolderContents from "../../hooks/useFolderContents";
 
 type ExplorerGridProps = {
   accountId: string;
@@ -253,10 +253,17 @@ export default function ExplorerGrid({
   onClipboardChange,
   onOpenFolder,
 }: ExplorerGridProps) {
-  const [files, setFiles] = useState<DriveFile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [version, setVersion] = useState(0);
+  const {
+    files,
+    setFiles,
+    loading,
+    loadingMore,
+    error,
+    loadMoreError,
+    hasMore,
+    loadMore,
+    reload,
+  } = useFolderContents(accountId, folderId);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -276,49 +283,12 @@ export default function ExplorerGrid({
     window.localStorage.setItem(VIEW_MODE_KEY, mode);
   }
 
-  const reload = useCallback(() => {
-    setLoading(true);
-    setVersion((v) => v + 1);
-  }, []);
-
   const notify = useCallback((message: string, isError = false) => {
     setToast(message);
     setToastIsError(isError);
 
     window.setTimeout(() => setToast(""), 4000);
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const res = await getFiles(folderId, accountId);
-
-        if (!cancelled) {
-          setFiles(res.files || []);
-          setError("");
-        }
-      } catch (err: unknown) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : "Failed to load files"
-          );
-          setFiles([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [folderId, accountId, version]);
 
   const sorted = useMemo(() => {
     const factor = sortDirection === "asc" ? 1 : -1;
@@ -1052,6 +1022,27 @@ export default function ExplorerGrid({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {(hasMore || loadMoreError) && (
+        <div className="mt-5 flex flex-col items-center gap-2">
+          {loadMoreError && (
+            <p className="text-sm text-red-400">{loadMoreError}</p>
+          )}
+
+          <button
+            type="button"
+            disabled={loadingMore}
+            onClick={() => void loadMore()}
+            className="min-h-10 rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition hover:border-zinc-600 hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-50"
+          >
+            {loadingMore
+              ? "Loading more..."
+              : loadMoreError
+              ? "Try again"
+              : "Load more"}
+          </button>
         </div>
       )}
 
