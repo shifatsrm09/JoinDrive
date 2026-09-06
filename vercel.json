@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm ci --include=dev && npm ci --prefix server --omit=dev",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "fluid": true,
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 300,
+      "excludeFiles": "{server/test/**,server/.env*,.env*}"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api" },
+    { "source": "/:path*", "destination": "/index.html" }
+  ]
+}

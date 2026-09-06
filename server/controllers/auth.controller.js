@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { google } from "googleapis";
+import { oauth2_v2 } from "googleapis/build/src/apis/oauth2/v2.js";
 
 import {
   createLoginClient,
@@ -13,6 +13,7 @@ import User from "../models/User.js";
 import GoogleAccount from "../models/GoogleAccount.js";
 
 import { getClientUrl } from "../config/client.js";
+import { connectDB } from "../config/db.js";
 
 const SCOPES = [
   "openid",
@@ -27,7 +28,8 @@ const LOGIN_STATE_COOKIE = "login_oauth_state";
 function cookieOptions(maxAge) {
   return {
     httpOnly: true,
-    secure: false,
+    secure: process.env.NODE_ENV === "production" || process.env.VERCEL === "1",
+    path: "/",
     sameSite: "lax",
     maxAge,
   };
@@ -75,8 +77,7 @@ function finishOAuth(req, res, path, params, isPopup) {
 }
 
 async function fetchGoogleProfile(client) {
-  const oauth2 = google.oauth2({
-    version: "v2",
+  const oauth2 = new oauth2_v2.Oauth2({
     auth: client,
   });
 
@@ -136,11 +137,7 @@ export async function googleCallback(req, res) {
 
     const nonce = req.cookies[LOGIN_STATE_COOKIE];
 
-    res.clearCookie(LOGIN_STATE_COOKIE, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "lax",
-    });
+    res.clearCookie(LOGIN_STATE_COOKIE, cookieOptions());
 
     let stateOk = false;
 
@@ -164,6 +161,8 @@ export async function googleCallback(req, res) {
         error: "invalid_state",
       });
     }
+
+    await connectDB();
 
     const client = createLoginClient();
 
@@ -266,11 +265,7 @@ export async function googleConnectCallback(req, res) {
 
     const nonce = req.cookies[STATE_COOKIE];
 
-    res.clearCookie(STATE_COOKIE, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "lax",
-    });
+    res.clearCookie(STATE_COOKIE, cookieOptions());
 
     if (!state) {
       return redirectToClient(req, res, "/explorer", {
@@ -297,6 +292,8 @@ export async function googleConnectCallback(req, res) {
         error: "connect_cancelled",
       }, decoded.popup === true);
     }
+
+    await connectDB();
 
     const user = await User.findById(decoded.userId);
 
@@ -402,11 +399,7 @@ export async function getMe(req, res) {
 }
 
 export async function logout(req, res) {
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: false,
-    sameSite: "lax",
-  });
+  res.clearCookie("token", cookieOptions());
 
   return res.json({
     success: true,
@@ -419,11 +412,7 @@ export async function deleteAccount(req, res) {
     await GoogleAccount.deleteMany({ userId: req.user._id });
     await User.findByIdAndDelete(req.user._id);
 
-    res.clearCookie("token", {
-      httpOnly: true,
-      secure: false,
-      sameSite: "lax",
-    });
+    res.clearCookie("token", cookieOptions());
 
     return res.json({
       success: true,

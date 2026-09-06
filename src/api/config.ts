@@ -1,4 +1,4 @@
-const apiUrls = (import.meta.env.VITE_API_URL || "")
+const apiUrls = (import.meta.env.VITE_API_URL || "/api")
   .split(",")
   .map((url: string) => url.trim().replace(/\/$/, ""))
   .filter(Boolean);
@@ -9,7 +9,7 @@ if (!apiUrls.length) {
 
 export const API_BASE_URL =
   apiUrls.find(
-    (url: string) => new URL(url).hostname === window.location.hostname
+    (url: string) => new URL(url, window.location.origin).hostname === window.location.hostname
   ) || apiUrls[0];
 
 export const GOOGLE_LOGIN_URL = `${API_BASE_URL}/auth/google`;

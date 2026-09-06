@@ -1,5 +1,5 @@
 export function openOAuthPopup(url: string) {
-  const oauthUrl = new URL(url);
+  const oauthUrl = new URL(url, window.location.origin);
   oauthUrl.searchParams.set("popup", "1");
 
   const popup = window.open(

@@ -417,6 +417,8 @@ export async function download(req, res) {
       res.destroy(error);
     });
 
+    res.on("close", () => stream.destroy());
+    res.flushHeaders();
     stream.pipe(res);
   } catch (error) {
     return fail(res, error);
