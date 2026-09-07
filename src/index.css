@@ -32,3 +32,18 @@ textarea,
   -moz-user-select: text;
   user-select: text;
 }
+
+.public-page,
+.public-page * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.public-page :is(a, button):focus-visible {
+  outline: 2px solid #8bbde3;
+  outline-offset: 5px;
+}
+
+.public-page [id] {
+  scroll-margin-top: 24px;
+}
