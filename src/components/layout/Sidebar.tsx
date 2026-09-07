@@ -16,7 +16,7 @@ import type { LucideIcon } from "lucide-react";
 import { GOOGLE_CONNECT_URL } from "../../api/config";
 import { useAuth } from "../../context/auth-context";
 import useDriveAccounts from "../../hooks/useDriveAccounts";
-import driveIcon from "../../assets/icon/drive-icon.png";
+import driveIcon from "../../assets/icon/joindrive-logo.png";
 import { openOAuthPopup } from "../../utils/openOAuthPopup";
 
 export type SidebarView =

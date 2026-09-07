@@ -4,7 +4,7 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/auth-context";
 import { GOOGLE_LOGIN_URL } from "../../api/config";
 import { openOAuthPopup } from "../../utils/openOAuthPopup";
-import driveIcon from "../../assets/icon/drive-icon.png";
+import driveIcon from "../../assets/icon/joindrive-logo.png";
 
 export default function PublicLayout() {
   const { user } = useAuth();
