@@ -1,8 +1,11 @@
 import jwt from "jsonwebtoken";
 
 import User from "../models/User.js";
+import { connectDB } from "../config/db.js";
 
 export async function protect(req, res, next) {
+  let decoded;
+
   try {
     const token = req.cookies.token;
 
@@ -13,7 +16,16 @@ export async function protect(req, res, next) {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return res.status(401).json({
+      success: false,
+      message: "Invalid token",
+    });
+  }
+
+  try {
+    await connectDB();
 
     const user = await User.findById(decoded.userId);
 
@@ -27,10 +39,10 @@ export async function protect(req, res, next) {
     req.user = user;
 
     next();
-  } catch (error) {
-    return res.status(401).json({
+  } catch {
+    return res.status(503).json({
       success: false,
-      message: "Invalid token",
+      message: "Database unavailable. Please try again shortly.",
     });
   }
 }

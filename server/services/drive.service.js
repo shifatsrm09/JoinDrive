@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { google } from "googleapis";
+import { drive_v3 } from "googleapis/build/src/apis/drive/v3.js";
 
 import GoogleAccount from "../models/GoogleAccount.js";
 import { getAuthenticatedClient } from "./google.service.js";
@@ -74,8 +74,7 @@ async function resolveAccount(userId, accountId) {
 async function getDriveClient(account) {
   const auth = await getAuthenticatedClient(account);
 
-  return google.drive({
-    version: "v3",
+  return new drive_v3.Drive({
     auth,
   });
 }
@@ -569,7 +568,7 @@ export async function createUploadSession(
 
   const account = await resolveAccount(userId, accountId);
   const auth = await getAuthenticatedClient(account);
-  const drive = google.drive({ version: "v3", auth });
+  const drive = new drive_v3.Drive({ auth });
   const { data: generatedIds } = await drive.files.generateIds({
     count: 1,
     space: "drive",

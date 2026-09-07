@@ -19,28 +19,6 @@ export async function getAuthenticatedClient(accountOrId) {
     expiry_date: account.expiryDate,
   });
 
-  client.on("tokens", async (tokens) => {
-    try {
-      if (tokens.access_token) {
-        account.accessToken = tokens.access_token;
-      }
-
-      if (tokens.refresh_token) {
-        account.refreshToken = tokens.refresh_token;
-      }
-
-      if (tokens.expiry_date) {
-        account.expiryDate = tokens.expiry_date;
-      }
-
-      account.lastSynced = new Date();
-
-      await account.save();
-    } catch (error) {
-      console.error("Failed to persist refreshed tokens", error);
-    }
-  });
-
   const isExpired =
     !account.expiryDate || Date.now() >= account.expiryDate - 60000;
 
@@ -52,7 +30,23 @@ export async function getAuthenticatedClient(accountOrId) {
     }
 
 
-    await client.refreshAccessToken();
+    const { credentials } = await client.refreshAccessToken();
+    const updates = { lastSynced: new Date() };
+
+    if (credentials.access_token) {
+      updates.accessToken = credentials.access_token;
+    }
+
+    if (credentials.refresh_token) {
+      updates.refreshToken = credentials.refresh_token;
+    }
+
+    if (credentials.expiry_date) {
+      updates.expiryDate = credentials.expiry_date;
+    }
+
+    await GoogleAccount.updateOne({ _id: account._id }, { $set: updates });
+    Object.assign(account, updates);
   }
 
   return client;
