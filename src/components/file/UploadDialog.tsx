@@ -67,7 +67,6 @@ function formatSize(bytes: number) {
 }
 
 export default function UploadDialog({
-  mode,
   onClose,
   onUploaded,
   initialLocation,
@@ -111,16 +110,11 @@ export default function UploadDialog({
 
   const [items, setItems] = useState<UploadItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null);
   const uploadControllerRef = useRef<AbortController | null>(null);
 
-  const dialogTitle =
-    mode === "folder" ? "Upload folder to Drive" : "Upload files to Drive";
+  const dialogTitle = "Upload files to Drive";
 
   useEffect(() => {
-    folderInputRef.current?.setAttribute("webkitdirectory", "");
-    folderInputRef.current?.setAttribute("directory", "");
-
     return () => uploadControllerRef.current?.abort();
   }, []);
 
@@ -214,22 +208,11 @@ export default function UploadDialog({
     fileInputRef.current?.click();
   }
 
-  function openFolderPicker() {
-    folderInputRef.current?.click();
-  }
-
   function openSelectedPicker() {
-    if (mode === "folder") {
-      openFolderPicker();
-    } else {
-      openFilePicker();
-    }
+    openFilePicker();
   }
 
-  function handleFilesSelected(
-    fileList: FileList | null,
-    uploadMode: "files" | "folder"
-  ) {
+  function handleFilesSelected(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) {
       return;
     }
@@ -247,66 +230,10 @@ export default function UploadDialog({
     uploadControllerRef.current = controller;
     setItems(chosen);
     setStep("uploading");
-    void runUploads(chosen, controller, uploadMode);
+    void runUploads(chosen, controller);
   }
 
-  async function ensureUploadFolder(
-    file: File,
-    folderIds: Map<string, Promise<string>>,
-    controller: AbortController
-  ) {
-    const parts = (file.webkitRelativePath || file.name)
-      .split("/")
-      .filter(Boolean)
-      .slice(0, -1);
-    let parentId = Promise.resolve(currentFolder.id);
-    let relativePath = "";
-
-    for (const folderName of parts) {
-      if (controller.signal.aborted) {
-        throw new DOMException("Upload cancelled", "AbortError");
-      }
-
-      relativePath = relativePath
-        ? `${relativePath}/${folderName}`
-        : folderName;
-
-      const existingId = folderIds.get(relativePath);
-
-      if (existingId) {
-        parentId = existingId;
-        continue;
-      }
-
-      const parentFolderId = parentId;
-      const folderId = parentFolderId.then(async (resolvedParentId) => {
-        if (controller.signal.aborted) {
-          throw new DOMException("Upload cancelled", "AbortError");
-        }
-
-        const res = await createFolder(
-          accountId,
-          resolvedParentId,
-          folderName,
-          controller.signal
-        );
-
-        return res.file.id;
-      });
-
-      folderIds.set(relativePath, folderId);
-      parentId = folderId;
-    }
-
-    return parentId;
-  }
-
-  async function runUploads(
-    list: UploadItem[],
-    controller: AbortController,
-    uploadMode: "files" | "folder"
-  ) {
-    const folderIds = new Map<string, Promise<string>>();
+  async function runUploads(list: UploadItem[], controller: AbortController) {
     let successfulUploads = 0;
     let nextIndex = 0;
 
@@ -340,14 +267,7 @@ export default function UploadDialog({
           );
 
           try {
-            const destinationFolderId =
-              uploadMode === "folder"
-                ? await ensureUploadFolder(list[i].file, folderIds, controller)
-                : currentFolder.id;
-
-            if (controller.signal.aborted) {
-              return;
-            }
+            const destinationFolderId = currentFolder.id;
 
             let sampledAt = performance.now();
             let sampledBytes = 0;
@@ -357,7 +277,6 @@ export default function UploadDialog({
 
             await uploadFile(accountId, destinationFolderId, list[i].file, {
               signal: controller.signal,
-              singleRequest: list.length === 1,
               onProgress: (uploaded, total) => {
                 const progress =
                   total > 0
@@ -557,7 +476,7 @@ export default function UploadDialog({
 
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs text-zinc-200">
-                    {item.file.webkitRelativePath || item.file.name}
+                    {item.file.name}
                   </p>
                   {item.error ? (
                     <p className="truncate text-[11px] text-zinc-500">
@@ -629,14 +548,7 @@ export default function UploadDialog({
         type="file"
         multiple
         className="hidden"
-        onChange={(event) => handleFilesSelected(event.target.files, "files")}
-      />
-      <input
-        ref={folderInputRef}
-        type="file"
-        multiple
-        className="hidden"
-        onChange={(event) => handleFilesSelected(event.target.files, "folder")}
+        onChange={(event) => handleFilesSelected(event.target.files)}
       />
 
       {step === "account" && (
@@ -691,7 +603,7 @@ export default function UploadDialog({
               className="flex min-h-11 items-center gap-2 rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8]"
             >
               <FolderOpen size={16} />
-              {mode === "folder" ? "Choose folder" : "Choose files"}
+              Choose files
             </button>
           </div>
         </div>
@@ -832,7 +744,7 @@ export default function UploadDialog({
               className="flex min-h-11 items-center gap-2 rounded-lg bg-[#0E639C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1177b8]"
             >
               <FolderOpen size={16} />
-              {mode === "folder" ? "Choose folder here" : "Choose files here"}
+              Choose files here
             </button>
           </div>
         </div>
