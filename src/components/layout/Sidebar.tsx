@@ -18,7 +18,7 @@ import { useAuth } from "../../context/auth-context";
 import useDriveAccounts from "../../hooks/useDriveAccounts";
 import driveIcon from "../../assets/icon/joindrive-logo.png";
 import { openOAuthPopup } from "../../utils/openOAuthPopup";
-import { formatStorage, getStorageSummary } from "../../utils/storage";
+import { formatStorage, getAccountStorage, getStorageSummary } from "../../utils/storage";
 
 export type SidebarView =
   | "dashboard"
@@ -74,7 +74,8 @@ export default function Sidebar({
     loading: storageLoading,
     error: storageError,
   } = useDriveAccounts(`${storageRefreshKey || ""}:${accountVersion}`);
-  const { used: totalUsed, limit: totalLimit, percentage: storagePercentage, partial } = getStorageSummary(storageAccounts);
+  const personalStorageAccounts = storageAccounts.filter(account => getAccountStorage(account).personal);
+  const { used: totalUsed, limit: totalLimit, percentage: storagePercentage, partial } = getStorageSummary(personalStorageAccounts);
   const storageNearlyFull = storagePercentage !== null && storagePercentage >= 90;
 
   useEffect(() => {
@@ -281,21 +282,27 @@ export default function Sidebar({
 
       {accounts.length > 0 && (
         <div className="shrink-0 border-t border-zinc-800 px-4 py-4">
+          <div className="mb-2.5 flex items-center gap-2 rounded-full bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200">
+            {!storageLoading && storageNearlyFull && (
+              <AlertTriangle size={15} className="shrink-0 text-[#b30000]" />
+            )}
+            <span>{!storageLoading && storagePercentage !== null ? `Storage (${Math.round(storagePercentage)}% full)` : "Storage"}</span>
+            <div className="group relative ml-auto">
+              <button type="button" aria-label="About combined storage" aria-describedby="combined-storage-info" className="flex h-4 w-4 items-center justify-center rounded-full border border-zinc-500 text-[10px] text-zinc-400 hover:text-white focus-visible:outline focus-visible:outline-offset-2">
+                ?
+              </button>
+              <div id="combined-storage-info" role="tooltip" className="pointer-events-none absolute bottom-full right-0 z-50 mb-2 hidden w-48 rounded-lg border border-zinc-600 bg-[#303030] p-2.5 text-xs font-normal leading-5 text-zinc-200 shadow-lg group-hover:block group-focus-within:block">
+                Combined storage used and capacity for personal Gmail accounts. Organization, work, and school accounts are excluded.
+              </div>
+            </div>
+          </div>
           {storageLoading ? (
             <div role="status" aria-label="Loading total storage" className="animate-pulse space-y-2.5">
-              <div className="h-7 rounded-full bg-zinc-800" />
               <div className="h-1.5 rounded-full bg-zinc-800" />
               <div className="h-3 w-3/4 rounded bg-zinc-800" />
             </div>
           ) : totalUsed !== null ? (
             <div className="space-y-2.5">
-              <div className="flex items-center gap-2 rounded-full bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200">
-                {storageNearlyFull && (
-                  <AlertTriangle size={15} className="shrink-0 text-[#b30000]" />
-                )}
-                <span>{storagePercentage === null ? "Drive storage" : `Storage (${Math.round(storagePercentage)}% full)`}</span>
-              </div>
-
               {storagePercentage !== null && <div className="h-1.5 overflow-hidden rounded-full bg-zinc-700">
                 <div
                   className={`h-full rounded-full ${
@@ -308,11 +315,11 @@ export default function Sidebar({
               <p className="text-xs text-zinc-400">
                 {totalLimit === null ? `${formatStorage(totalUsed)} used in Drive` : `${formatStorage(totalUsed)} of ${formatStorage(totalLimit)} used`}
               </p>
-              {totalLimit === null && <p className="text-[11px] text-zinc-500">{partial ? "Some accounts' storage is unavailable." : "Across connected accounts. Individual limits may vary."}</p>}
+              {totalLimit === null && <p className="text-[11px] text-zinc-500">{partial ? "Some personal accounts' storage is unavailable." : "Personal account capacity unavailable."}</p>}
             </div>
           ) : (
             <p className="text-xs text-zinc-500">
-              {storageError || "Storage information unavailable"}
+              {storageError || (personalStorageAccounts.length === 0 ? "No personal Gmail accounts connected." : "Storage information unavailable")}
             </p>
           )}
         </div>
