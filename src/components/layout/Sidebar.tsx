@@ -18,6 +18,7 @@ import { useAuth } from "../../context/auth-context";
 import useDriveAccounts from "../../hooks/useDriveAccounts";
 import driveIcon from "../../assets/icon/joindrive-logo.png";
 import { openOAuthPopup } from "../../utils/openOAuthPopup";
+import { formatStorage, getStorageSummary } from "../../utils/storage";
 
 export type SidebarView =
   | "dashboard"
@@ -44,22 +45,6 @@ type SidebarProps = {
   storageRefreshKey?: string;
   uploadsDisabled?: boolean;
 };
-
-const STORAGE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"];
-
-function formatStorage(bytes: number) {
-  let value = bytes;
-  let unit = 0;
-
-  while (value >= 1024 && unit < STORAGE_UNITS.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-
-  return `${new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: 2,
-  }).format(value)} ${STORAGE_UNITS[unit]}`;
-}
 
 export default function Sidebar({
   activeView,
@@ -89,17 +74,8 @@ export default function Sidebar({
     loading: storageLoading,
     error: storageError,
   } = useDriveAccounts(`${storageRefreshKey || ""}:${accountVersion}`);
-  const totalUsed = storageAccounts.reduce(
-    (sum, account) => sum + Number(account.storage?.usage || 0),
-    0
-  );
-  const totalLimit = storageAccounts.reduce(
-    (sum, account) => sum + Number(account.storage?.limit || 0),
-    0
-  );
-  const storagePercentage =
-    totalLimit > 0 ? Math.min((totalUsed / totalLimit) * 100, 100) : 0;
-  const storageNearlyFull = storagePercentage >= 90;
+  const { used: totalUsed, limit: totalLimit, percentage: storagePercentage, partial } = getStorageSummary(storageAccounts);
+  const storageNearlyFull = storagePercentage !== null && storagePercentage >= 90;
 
   useEffect(() => {
     if (!newMenu) {
@@ -311,27 +287,28 @@ export default function Sidebar({
               <div className="h-1.5 rounded-full bg-zinc-800" />
               <div className="h-3 w-3/4 rounded bg-zinc-800" />
             </div>
-          ) : totalLimit > 0 ? (
+          ) : totalUsed !== null ? (
             <div className="space-y-2.5">
               <div className="flex items-center gap-2 rounded-full bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200">
                 {storageNearlyFull && (
                   <AlertTriangle size={15} className="shrink-0 text-[#b30000]" />
                 )}
-                <span>Storage ({Math.round(storagePercentage)}% full)</span>
+                <span>{storagePercentage === null ? "Drive storage" : `Storage (${Math.round(storagePercentage)}% full)`}</span>
               </div>
 
-              <div className="h-1.5 overflow-hidden rounded-full bg-zinc-700">
+              {storagePercentage !== null && <div className="h-1.5 overflow-hidden rounded-full bg-zinc-700">
                 <div
                   className={`h-full rounded-full ${
                     storageNearlyFull ? "bg-[#b30000]" : "bg-[#0E639C]"
                   }`}
                   style={{ width: `${storagePercentage}%` }}
                 />
-              </div>
+              </div>}
 
               <p className="text-xs text-zinc-400">
-                {formatStorage(totalUsed)} of {formatStorage(totalLimit)} used
+                {totalLimit === null ? `${formatStorage(totalUsed)} used in Drive` : `${formatStorage(totalUsed)} of ${formatStorage(totalLimit)} used`}
               </p>
+              {totalLimit === null && <p className="text-[11px] text-zinc-500">{partial ? "Some accounts' storage is unavailable." : "Across connected accounts. Individual limits may vary."}</p>}
             </div>
           ) : (
             <p className="text-xs text-zinc-500">

@@ -14,6 +14,7 @@ import ConfirmDialog from "../file/ConfirmDialog";
 
 import { disconnectAccount } from "../../api/drive";
 import type { DriveAccount } from "../../types/drive";
+import { formatStorage, getAccountStorage } from "../../utils/storage";
 
 type DriveCardProps = {
   account: DriveAccount;
@@ -21,26 +22,13 @@ type DriveCardProps = {
   onRemoved?: () => void;
 };
 
-const GB = 1024 * 1024 * 1024;
-
-function toGb(value?: string) {
-  if (!value) {
-    return 0;
-  }
-
-  return +(Number(value) / GB).toFixed(2);
-}
-
 export default function DriveCard({
   account,
   onOpen,
   onRemoved,
 }: DriveCardProps) {
-  const used = toGb(account.storage?.usage);
-  const total = toGb(account.storage?.limit);
-
-  const percentage = total > 0 ? (used / total) * 100 : 0;
-  const isStorageNearlyFull = percentage >= 90;
+  const { used, limit, percentage, personal } = getAccountStorage(account);
+  const isStorageNearlyFull = percentage !== null && percentage >= 90;
 
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(
@@ -149,16 +137,16 @@ export default function DriveCard({
 
       <div className="mt-3">
         <div className="mb-1.5 flex flex-wrap justify-between gap-x-2 gap-y-1 text-xs">
-          <span>Storage</span>
+          <span>{personal ? "Storage" : "Drive storage"}</span>
 
           <span className="text-zinc-300">
-            {account.connected
-              ? `${used} GB / ${total} GB`
-              : "Unavailable"}
+            {used === null ? "Unavailable" : limit === null
+              ? `${formatStorage(used)} used`
+              : `${formatStorage(used)} / ${formatStorage(limit)}`}
           </span>
         </div>
 
-        <div className="h-1.5 overflow-hidden rounded-full bg-zinc-700">
+        {percentage !== null && <div className="h-1.5 overflow-hidden rounded-full bg-zinc-700">
           <div
             className={`h-full rounded-full transition-all ${
               isStorageNearlyFull ? "bg-[#b30000]" : "bg-[#0E639C]"
@@ -167,7 +155,8 @@ export default function DriveCard({
               width: `${Math.min(percentage, 100)}%`,
             }}
           />
-        </div>
+        </div>}
+        {!personal && <p className="mt-1.5 text-[11px] text-zinc-400">Drive files only. Individual storage limit unavailable.</p>}
       </div>
 
       <div
