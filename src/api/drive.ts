@@ -178,7 +178,6 @@ export function permanentlyDeleteFile(accountId: string, fileId: string) {
   );
 }
 
-
 export function emptyTrash() {
   return apiFetch<{ success: boolean; accounts: number; failed: number }>(
     "/drive/trash/empty",
@@ -244,7 +243,6 @@ type UploadOptions = {
   signal?: AbortSignal;
   onProgress?: (uploaded: number, total: number) => void;
   onRetry?: (attempt: number, delayMs: number, reason: string) => void;
-  singleRequest?: boolean;
 };
 
 type UploadResponse = {
@@ -279,11 +277,15 @@ class UploadSessionExpiredError extends Error {
 }
 
 const CHUNK_UNIT = 256 * 1024;
-const MIN_CHUNK_SIZE = 8 * 1024 * 1024;
-const INITIAL_CHUNK_SIZE = 64 * 1024 * 1024;
-const MAX_CHUNK_SIZE = 256 * 1024 * 1024;
+const MIN_CHUNK_SIZE = 4 * 1024 * 1024;
+const INITIAL_CHUNK_SIZE = 8 * 1024 * 1024;
+const MAX_CHUNK_SIZE = 64 * 1024 * 1024;
+const TARGET_CHUNK_SECONDS = 5;
 const MAX_CHUNK_RETRIES = 6;
 const MAX_SESSION_RETRIES = 4;
+const STALL_TIMEOUT_MS = 45_000;
+const FINALIZE_TIMEOUT_MS = 120_000;
+const STATUS_TIMEOUT_MS = 30_000;
 
 function abortError() {
   return new DOMException("Upload cancelled", "AbortError");
@@ -316,7 +318,7 @@ function retryAfterMs(value: string | null) {
 }
 
 function backoffMs(attempt: number, retryAfter?: string | null) {
-  const exponential = Math.min(2 ** Math.max(0, attempt - 1) * 1000, 30_000);
+  const exponential = Math.min(2 ** Math.max(0, attempt - 1) * 1000, 8_000);
   const jitter = Math.random() * 750;
 
   return Math.max(retryAfterMs(retryAfter || null), exponential + jitter);
@@ -392,7 +394,7 @@ function adaptChunkSize(current: number, bytes: number, elapsedMs: number) {
   }
 
   const bytesPerSecond = bytes / (elapsedMs / 1000);
-  const target = bytesPerSecond * 6;
+  const target = bytesPerSecond * TARGET_CHUNK_SECONDS;
   const bounded = Math.min(current * 2, Math.max(current / 2, target));
 
   return alignedChunkSize(bounded);
@@ -415,7 +417,26 @@ function uploadChunkRequest(
     const request = new XMLHttpRequest();
     const end = start + chunk.size;
 
+    let stallTimer = 0;
+    let stalled = false;
+
+    function clearStallTimer() {
+      if (stallTimer) {
+        window.clearTimeout(stallTimer);
+        stallTimer = 0;
+      }
+    }
+
+    function armStallTimer(timeoutMs: number) {
+      clearStallTimer();
+      stallTimer = window.setTimeout(() => {
+        stalled = true;
+        request.abort();
+      }, timeoutMs);
+    }
+
     function cleanup() {
+      clearStallTimer();
       options.signal?.removeEventListener("abort", handleAbort);
     }
 
@@ -431,6 +452,8 @@ function uploadChunkRequest(
     );
 
     request.upload.onprogress = (event) => {
+      armStallTimer(STALL_TIMEOUT_MS);
+
       const uploaded = Math.min(start + event.loaded, end);
       const visibleProgress =
         end === total
@@ -440,6 +463,10 @@ function uploadChunkRequest(
       options.onProgress?.(visibleProgress, total);
     };
 
+    request.upload.onloadend = () => {
+      armStallTimer(FINALIZE_TIMEOUT_MS);
+    };
+
     request.onload = () => {
       cleanup();
       resolve({
@@ -457,67 +484,12 @@ function uploadChunkRequest(
 
     request.onabort = () => {
       cleanup();
-      reject(abortError());
+      reject(stalled ? new UploadNetworkError() : abortError());
     };
 
     options.signal?.addEventListener("abort", handleAbort, { once: true });
+    armStallTimer(STALL_TIMEOUT_MS);
     request.send(chunk);
-  });
-}
-
-function uploadWholeFileRequest(
-  uploadUrl: string,
-  file: File,
-  options: UploadOptions
-) {
-  return new Promise<UploadResponse>((resolve, reject) => {
-    if (options.signal?.aborted) {
-      reject(abortError());
-      return;
-    }
-
-    const request = new XMLHttpRequest();
-
-    function cleanup() {
-      options.signal?.removeEventListener("abort", handleAbort);
-    }
-
-    function handleAbort() {
-      request.abort();
-    }
-
-    request.open("PUT", uploadUrl);
-    request.setRequestHeader(
-      "Content-Type",
-      file.type || "application/octet-stream"
-    );
-
-    request.upload.onprogress = (event) => {
-      options.onProgress?.(Math.min(event.loaded, file.size - 1), file.size);
-    };
-
-    request.onload = () => {
-      cleanup();
-      resolve({
-        status: request.status,
-        body: request.responseText,
-        range: request.getResponseHeader("Range"),
-        retryAfter: request.getResponseHeader("Retry-After"),
-      });
-    };
-
-    request.onerror = () => {
-      cleanup();
-      reject(new UploadNetworkError());
-    };
-
-    request.onabort = () => {
-      cleanup();
-      reject(abortError());
-    };
-
-    options.signal?.addEventListener("abort", handleAbort, { once: true });
-    request.send(file);
   });
 }
 
@@ -543,7 +515,13 @@ function uploadStatusRequest(
     }
 
     request.open("PUT", uploadUrl);
+    request.timeout = STATUS_TIMEOUT_MS;
     request.setRequestHeader("Content-Range", `bytes */${total}`);
+
+    request.ontimeout = () => {
+      cleanup();
+      reject(new UploadNetworkError());
+    };
 
     request.onload = () => {
       cleanup();
@@ -605,7 +583,7 @@ async function verifyUploadedFile(
   accountId: string,
   fileId: string,
   options: UploadOptions,
-  maxAttempts = 8
+  maxAttempts = 6
 ) {
   let lastError: unknown = new Error("Google Drive did not confirm the upload");
 
@@ -630,7 +608,7 @@ async function verifyUploadedFile(
       }
 
       if (attempt < maxAttempts) {
-        const delay = Math.min(500 * 2 ** (attempt - 1), 4_000);
+        const delay = Math.min(400 * 2 ** (attempt - 1), 3_000);
 
         options.onRetry?.(attempt, delay, "Confirming upload with Google Drive");
         await wait(delay, options.signal);
@@ -644,6 +622,23 @@ async function verifyUploadedFile(
       : "Google Drive did not confirm the upload",
     { cause: lastError }
   );
+}
+
+async function findUploadedFile(
+  accountId: string,
+  fileId: string,
+  options: UploadOptions,
+  maxAttempts = 3
+) {
+  try {
+    return await verifyUploadedFile(accountId, fileId, options, maxAttempts);
+  } catch (error: unknown) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+
+    return null;
+  }
 }
 
 async function completeUpload(
@@ -661,7 +656,7 @@ async function completeUpload(
 
 function retryReason(error: unknown) {
   if (error instanceof UploadNetworkError) {
-    return "Connection interrupted, checking uploaded data";
+    return "Connection interrupted, resuming where Drive stopped";
   }
 
   if (error instanceof RetryableUploadError) {
@@ -728,9 +723,7 @@ async function uploadSession(
 ) {
   const contentType = file.type || "application/octet-stream";
   let offset = 0;
-  let chunkSize = alignedChunkSize(
-    Math.min(INITIAL_CHUNK_SIZE, Math.max(file.size, MIN_CHUNK_SIZE))
-  );
+  let chunkSize = alignedChunkSize(INITIAL_CHUNK_SIZE);
   let retries = 0;
 
   while (offset < file.size) {
@@ -761,26 +754,14 @@ async function uploadSession(
       }
 
       if (response.status === 308) {
-        const received = parseReceivedOffset(response.range) ?? end;
+        const received = parseReceivedOffset(response.range);
 
-        if (received <= offset) {
+        if (received === null || received <= offset) {
           throw new UploadNetworkError();
         }
 
         offset = Math.min(received, file.size);
         options.onProgress?.(offset, file.size);
-
-        if (offset === file.size) {
-          const completed = await verifyUploadedFile(
-            accountId,
-            session.fileId,
-            options
-          );
-
-          options.onProgress?.(file.size, file.size);
-          return completed;
-        }
-
         chunkSize = adaptChunkSize(
           chunkSize,
           chunk.size,
@@ -809,6 +790,20 @@ async function uploadSession(
         !(error instanceof RetryableUploadError)
       ) {
         throw error;
+      }
+
+      if (end === file.size) {
+        const finalized = await findUploadedFile(
+          accountId,
+          session.fileId,
+          options,
+          5
+        );
+
+        if (finalized) {
+          options.onProgress?.(file.size, file.size);
+          return finalized;
+        }
       }
 
       retries += 1;
@@ -863,208 +858,18 @@ async function uploadSession(
       }
 
       if (statusResponse.status === 308) {
-        offset = Math.min(
-          parseReceivedOffset(statusResponse.range) ?? 0,
-          file.size
-        );
-        options.onProgress?.(offset, file.size);
+        const received = parseReceivedOffset(statusResponse.range);
 
-        if (offset === file.size) {
-          const completed = await verifyUploadedFile(
-            accountId,
-            session.fileId,
-            options
-          );
-
-          options.onProgress?.(file.size, file.size);
-          return completed;
+        if (received !== null) {
+          offset = Math.min(received, file.size);
+          options.onProgress?.(offset, file.size);
         }
 
         continue;
       }
 
       if (statusResponse.status === 404) {
-        if (end === file.size) {
-          try {
-            const completed = await verifyUploadedFile(
-              accountId,
-              session.fileId,
-              options,
-              4
-            );
-
-            options.onProgress?.(file.size, file.size);
-            return completed;
-          } catch (verificationError: unknown) {
-            if (isAbortError(verificationError)) {
-              throw verificationError;
-            }
-
-            throw new UploadSessionExpiredError(verificationError);
-          }
-        }
-
         throw new UploadSessionExpiredError();
-      }
-
-      if (!isRetryableStatus(statusResponse.status, statusResponse.body)) {
-        throw new Error(responseMessage(statusResponse), { cause: error });
-      }
-    }
-  }
-
-  throw new Error("Google Drive did not complete the upload");
-}
-
-async function uploadSingleRequestSession(
-  session: UploadSessionResponse,
-  accountId: string,
-  file: File,
-  options: UploadOptions
-) {
-  const contentType = file.type || "application/octet-stream";
-  let offset = 0;
-  let retries = 0;
-  let useWholeFileRequest = true;
-
-  while (offset < file.size) {
-    try {
-      const response = useWholeFileRequest
-        ? await uploadWholeFileRequest(session.uploadUrl, file, options)
-        : await uploadChunkRequest(
-            session.uploadUrl,
-            file.slice(offset),
-            offset,
-            file.size,
-            contentType,
-            options
-          );
-
-      useWholeFileRequest = false;
-
-      if (response.status === 200 || response.status === 201) {
-        const completed = await completeUpload(
-          response,
-          accountId,
-          session.fileId,
-          options
-        );
-
-        options.onProgress?.(file.size, file.size);
-        return completed;
-      }
-
-      if (response.status === 308) {
-        const received = parseReceivedOffset(response.range);
-
-        if (received === null || received <= offset) {
-          throw new UploadNetworkError();
-        }
-
-        offset = Math.min(received, file.size);
-        options.onProgress?.(offset, file.size);
-        retries = 0;
-        continue;
-      }
-
-      if (response.status === 404) {
-        throw new UploadSessionExpiredError();
-      }
-
-      if (isRetryableStatus(response.status, response.body)) {
-        throw new RetryableUploadError(response);
-      }
-
-      throw new Error(responseMessage(response));
-    } catch (error: unknown) {
-      if (isAbortError(error) || error instanceof UploadSessionExpiredError) {
-        throw error;
-      }
-
-      if (
-        !(error instanceof UploadNetworkError) &&
-        !(error instanceof RetryableUploadError)
-      ) {
-        throw error;
-      }
-
-      retries += 1;
-
-      if (retries > MAX_CHUNK_RETRIES) {
-        throw new Error(
-          error instanceof Error
-            ? `Upload failed after repeated retries: ${error.message}`
-            : "Upload failed after repeated retries",
-          { cause: error }
-        );
-      }
-
-      const retryAfter =
-        error instanceof RetryableUploadError
-          ? error.response.retryAfter
-          : null;
-      const delay = backoffMs(retries, retryAfter);
-
-      options.onRetry?.(retries, delay, retryReason(error));
-      await waitUntilOnline(options.signal);
-      await wait(delay, options.signal);
-
-      let statusResponse: UploadResponse;
-
-      try {
-        statusResponse = await uploadStatusRequest(
-          session.uploadUrl,
-          file.size,
-          options.signal
-        );
-      } catch (statusError: unknown) {
-        if (isAbortError(statusError)) {
-          throw statusError;
-        }
-
-        continue;
-      }
-
-      if (statusResponse.status === 200 || statusResponse.status === 201) {
-        const completed = await completeUpload(
-          statusResponse,
-          accountId,
-          session.fileId,
-          options
-        );
-
-        options.onProgress?.(file.size, file.size);
-        return completed;
-      }
-
-      if (statusResponse.status === 308) {
-        offset = Math.min(
-          parseReceivedOffset(statusResponse.range) ?? 0,
-          file.size
-        );
-        options.onProgress?.(offset, file.size);
-        useWholeFileRequest = offset === 0;
-        continue;
-      }
-
-      if (statusResponse.status === 404) {
-        try {
-          const completed = await verifyUploadedFile(
-            accountId,
-            session.fileId,
-            options,
-            4
-          );
-
-          options.onProgress?.(file.size, file.size);
-          return completed;
-        } catch (verificationError: unknown) {
-          if (isAbortError(verificationError)) {
-            throw verificationError;
-          }
-
-          throw new UploadSessionExpiredError(verificationError);
-        }
       }
 
       if (!isRetryableStatus(statusResponse.status, statusResponse.body)) {
@@ -1095,16 +900,36 @@ export async function uploadFile(
 
   options.onProgress?.(0, file.size);
 
-  for (let restart = 0; restart < 2; restart += 1) {
-    const session = await createSession(accountId, folderId, file, options);
+  let session: UploadSessionResponse | null = null;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (session) {
+      const alreadyUploaded = await findUploadedFile(
+        accountId,
+        session.fileId,
+        options
+      );
+
+      if (alreadyUploaded) {
+        options.onProgress?.(file.size, file.size);
+        return alreadyUploaded;
+      }
+    }
+
+    session = await createSession(accountId, folderId, file, options);
 
     try {
-      return options.singleRequest
-        ? await uploadSingleRequestSession(session, accountId, file, options)
-        : await uploadSession(session, accountId, file, options);
+      return await uploadSession(session, accountId, file, options);
     } catch (error: unknown) {
-      if (!(error instanceof UploadSessionExpiredError) || restart === 1) {
+      if (isAbortError(error)) {
         throw error;
+      }
+
+      lastError = error;
+
+      if (!(error instanceof UploadSessionExpiredError)) {
+        break;
       }
 
       const delay = backoffMs(1);
@@ -1115,5 +940,16 @@ export async function uploadFile(
     }
   }
 
-  throw new Error("Google Drive did not complete the upload");
+  if (session) {
+    const uploaded = await findUploadedFile(accountId, session.fileId, options);
+
+    if (uploaded) {
+      options.onProgress?.(file.size, file.size);
+      return uploaded;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Google Drive did not complete the upload");
 }

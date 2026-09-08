@@ -341,9 +341,6 @@ export default function ExplorerLayout() {
           onUploadFiles={() =>
             runSidebarAction(() => setNewAction("files"))
           }
-          onUploadFolder={() =>
-            runSidebarAction(() => setNewAction("folder"))
-          }
           onSelectRecent={() =>
             runSidebarAction(() => pushEntry({ type: "recent" }))
           }

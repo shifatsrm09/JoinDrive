@@ -37,7 +37,6 @@ type SidebarProps = {
   activeView: SidebarView;
   onNavigateHome: () => void;
   onUploadFiles: () => void;
-  onUploadFolder: () => void;
   onSelectRecent: () => void;
   onSelectFavorites: () => void;
   onSelectTrash: () => void;
@@ -50,7 +49,6 @@ export default function Sidebar({
   activeView,
   onNavigateHome,
   onUploadFiles,
-  onUploadFolder,
   onSelectRecent,
   onSelectFavorites,
   onSelectTrash,
@@ -270,11 +268,16 @@ export default function Sidebar({
             <button
               type="button"
               role="menuitem"
-              onClick={() => runNewAction(onUploadFolder)}
-              className="flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left text-sm text-zinc-200 transition hover:bg-zinc-700/70 lg:min-h-0"
+              disabled
+              aria-disabled="true"
+              title="Folder upload is coming soon"
+              className="flex min-h-11 w-full cursor-not-allowed items-center gap-3 px-3 py-2 text-left text-sm text-zinc-500 lg:min-h-0"
             >
               <FolderUp size={17} />
               Folder upload
+              <span className="ml-auto text-[10px] uppercase tracking-wide text-zinc-600">
+                Soon
+              </span>
             </button>
           </div>,
           document.body
